@@ -2,7 +2,7 @@
 import { createParser } from "https://deno.land/x/deno_tree_sitter@1.0.1.2/main/main.js"
 import { xmlStylePreview } from "https://deno.land/x/deno_tree_sitter@1.0.1.2/main/extras/xml_style_preview.js"
 import bash from "https://esm.sh/gh/jeff-hykin/common_tree_sitter_languages@1.3.2.0/main/bash.js"
-import { FileSystem, glob } from "https://deno.land/x/quickr@0.8.4/main/file_system.js"
+import { FileSystem, glob } from "https://deno.land/x/quickr@0.8.7/main/file_system.js"
 import { escapeJsString } from 'https://esm.sh/gh/jeff-hykin/good-js@1.18.2.0/source/flattened/escape_js_string.js'
 import { isValidKeyLiteral } from 'https://esm.sh/gh/jeff-hykin/good-js@1.18.2.0/source/flattened/is_valid_key_literal.js'
 import { zipLong } from 'https://esm.sh/gh/jeff-hykin/good-js@1.18.2.0/source/flattened/zip_long.js'
@@ -112,6 +112,11 @@ function translate(node) {
         }
 
         function convertArgs(nodes, {asArrayString=false, asArray=false, asSingleString=false} = {}) {
+            if (typeof nodes == "string") {
+                console.debug(`nodes1 is:`,nodes)
+                nodes = parser.parse(": "+nodes).rootNode.children[0].children.slice(2,)
+                console.debug(`nodes2 is:`,nodes)
+            }
             let currentArg = []
             let createNewArg = true // this is to handle annoying edge cases by lazily creating new args
             const args = []
@@ -182,6 +187,73 @@ function translate(node) {
                 return "`"+argStrings.join(" ")+"`"
             }
         }
+
+        function convertBashTestToJS(expr) {
+            expr = expr.trim()
+
+            // Remove surrounding [[ ]] if present
+            expr = expr.replace(/^\[\[\s*|\s*\]\]$/g, "")
+
+            // Handle "command -v foo" or "which foo"
+            const cmdMatch = expr.match(/^(command\s+-v|which)\s+(.+)$/)
+            if (cmdMatch) {
+                const cmd = cmdMatch[2].trim().replace(/^["']|["']$/g, "")
+                usesHasCommand = true
+                return `hasCommand("${cmd}")`
+            }
+
+            // Match binary expressions like "$a" = "hi"
+            const binaryOpMatch = expr.match(/^(.+?)\s*(!=|-eq|-ne|-gt|-lt|-ge|-le|==|=)\s*(.+)$/)
+            if (binaryOpMatch) {
+                const [, leftRaw, op, rightRaw] = binaryOpMatch
+                const left = convertArgs(leftRaw.trim())
+                const right = convertArgs(rightRaw.trim())
+                console.debug(`left is:`,left)
+                console.debug(`op is:`,op)
+                console.debug(`right is:`,right)
+
+                const opMap = {
+                    "=": "===",
+                    "==": "===",
+                    "!=": "!==",
+                    "-eq": "==",
+                    "-ne": "!=",
+                    "-gt": ">",
+                    "-lt": "<",
+                    "-ge": ">=",
+                    "-le": "<=",
+                }
+
+                const jsOp = opMap[op]
+                return `${left} ${jsOp} ${right}`
+            }
+
+            // Match file tests: -e, -d, -L, -x
+            const fileTestMatch = expr.match(/^-(e|d|L|x)\s+(.+)$/)
+            if (fileTestMatch) {
+                const flag = fileTestMatch[1]
+                const fileExpr = convertArgs(fileTestMatch[2].trim())
+
+                switch (flag) {
+                    case "e":
+                        usesFs = true
+                        return `fs.existsSync(${fileExpr})`
+                    case "d":
+                        usesFs = true
+                        return `fs.existsSync(${fileExpr}) && fs.lstatSync(${fileExpr}).isDirectory()`
+                    case "L":
+                        usesFs = true
+                        return `fs.existsSync(${fileExpr}) && fs.lstatSync(${fileExpr}).isSymbolicLink()`
+                    case "x":
+                        usesFs = true
+                        return `fs.existsSync(${fileExpr}) && (() => { try { fs.accessSync(${fileExpr}, fs.constants.X_OK); return true; } catch (e) { return false; } })()`
+                }
+            }
+
+            // Fallback for unrecognized formats
+            throw new Error(`Unsupported expression: ${expr}`)
+        }
+
         const fallbackTranslate = (node)=>"////" + node.text.replace(/\n/g, "\n////")
         if (node.type == "program") {
             const contents = node.children.map(translateInner).join("")
@@ -192,7 +264,7 @@ function translate(node) {
                 `const $$ = (...args)=>$(...args).noThrow()`,
             ]
             if (usedVars) {
-                imports.push(`import { env } from "https://deno.land/x/quickr@0.8.6/main/env.js"`)
+                imports.push(`import { env } from "https://deno.land/x/quickr@0.8.7/main/env.js"`)
             }
             if (usedStdout) {
                 helpers.push(`const $stdout = [ Deno.stdout.readable, {preventClose:true} ]`)
@@ -261,6 +333,8 @@ function translate(node) {
                 return fallbackTranslate(node)
             }
             return `${node.indent}env${escapeJsKeyAccess(varNameNode.text)} = ${convertedArgs}`
+        } else if (node.type == "unset_command") {
+            return `delete env${escapeJsKeyAccess(node.text.replace(/^unset\s*/,""))}`
         // 
         // command/alias
         // 
@@ -296,6 +370,9 @@ function translate(node) {
                 }
                 return  "await $$"+convertedArgs
             }
+        // 
+        // redirection
+        // 
         } else if (node.type == "redirected_statement") {
             // <redirected_statement>
             //     <command>
@@ -456,6 +533,9 @@ function translate(node) {
                 }
                 return `await $$${convertArgs(commandNode.children).slice(0,-1)}\`${stdoutString}${stderrString}`
             }
+        // 
+        // pipes
+        // 
         } else if (node.type == "pipeline") {
             const commands = node.children.filter(each=>each.type == `command`||each.type == `redirected_statement`)
             const pipeInMiddle = commands.some(each=>each.type == `pipeline`&&each!=commands.at(-1))
@@ -484,6 +564,9 @@ function translate(node) {
             const lastPart = lastCommandConverted.replace(/^await \$\$\`/,"")
             const coreCommand = [ ...otherCommandsConverted.map(each=>each.slice(1,-1)), lastPart ].join(" | ")
             return `await $$\`${coreCommand}`
+        // 
+        // chaining
+        // 
         } else if (node.type == "list") {
             function convertList(node) {
                 const commands = node.children.filter(each=>each.type == `command`||each.type == `redirected_statement`||each.type == `list`)
@@ -541,6 +624,166 @@ function translate(node) {
             return `await $$\`${escaped.join(" ")}`
             // node.quickQueryFirst(`(command) @firstCommand`).firstCommand
             // return translateInner(node.children[0])
+        // 
+        // if 
+        // 
+        } else if (node.type == "else") {
+            return `\n${node.indent}} else {\n`
+        } else if (node.type == "elif_clause") {
+            return node.children.map(translateInner).join("")
+        } else if (node.type == "else_clause") {
+            return node.children.map(translateInner).join("")
+        } else if (node.type == "if") {
+            return `if (`
+        } else if (node.type == "elif") {
+            return `} else if (`
+        } else if (node.type == "then") {
+            return ""
+        } else if (node.type == "fi") {
+            return `\n${node.indent}}`
+        } else if (node.type == "test_command") {
+            return convertBashTestToJS(node.text) + ") {"
+        } else if (node.type == "if_statement") {
+            // FIXME: handle the semicolon that can appear before the then
+            return node.children.map(translateInner).join("").replace(/\) \{;/g, ") {")
+            // let condition1 = []
+            // let consequence1 = []
+            // let others = []
+            // let foundThen = false
+            // var i=-1
+            // for (let each of node.children) {
+            //     i++
+            //     if (each.type == "then") {
+            //         foundThen = true
+            //         continue
+            //     }
+            //     if (!foundThen) {
+            //         condition1.push(each)
+            //         continue
+            //     }
+            //     if (["fi","else_clause","elif_clause"].includes(each.type)) {
+            //         break
+            //     }
+            //     consequence1.push(each)
+            // }
+            // let output = []
+            // output.push(`if (${convertArgs(condition1)})`)
+
+            // for (const each of node.children.slice(i)) {
+            //     if (each.type == "fi") {
+            //         break
+            //     }
+            //     if (each.type == "else_clause") {
+            //         others.push(each)
+            //         break
+            //     }
+            // }
+            
+            // <if_statement>
+            //     <if text="if" />
+            //     <whitespace text=" " />
+            //     <test_command>
+            //         <"[[" text="[[" />
+            //         <whitespace text=" " />
+            //         <binary_expression>
+            //             <string>
+            //                 <"\"" text="\"" />
+            //                 <simple_expansion>
+            //                     <"$" text="$" />
+            //                     <variable_name text="name" />
+            //                 </simple_expansion>
+            //                 <"\"" text="\"" />
+            //             </string>
+            //             <whitespace text=" " />
+            //             <"==" text="==" />
+            //             <whitespace text=" " />
+            //             <string>
+            //                 <"\"" text="\"" />
+            //                 <string_content text="Alice" />
+            //                 <"\"" text="\"" />
+            //             </string>
+            //         </binary_expression>
+            //         <whitespace text=" " />
+            //         <"]]" text="]]" />
+            //     </test_command>
+            //     <";" text=";" />
+            //     <whitespace text=" " />
+            //     <then text="then" />
+            //     <whitespace text="\n  " />
+            //     <command>
+            //         <command_name>
+            //             <word text="echo" />
+            //         </command_name>
+            //         <whitespace text=" " />
+            //         <string>
+            //             <"\"" text="\"" />
+            //             <string_content text="Hi Alice!" />
+            //             <"\"" text="\"" />
+            //         </string>
+            //     </command>
+            //     <whitespace text="\n" />
+            //     <elif_clause>
+            //         <elif text="elif" />
+            //         <whitespace text=" " />
+            //         <test_command>
+            //             <"[[" text="[[" />
+            //             <whitespace text=" " />
+            //             <binary_expression>
+            //                 <string>
+            //                     <"\"" text="\"" />
+            //                     <simple_expansion>
+            //                         <"$" text="$" />
+            //                         <variable_name text="name" />
+            //                     </simple_expansion>
+            //                     <"\"" text="\"" />
+            //                 </string>
+            //                 <whitespace text=" " />
+            //                 <"==" text="==" />
+            //                 <whitespace text=" " />
+            //                 <string>
+            //                     <"\"" text="\"" />
+            //                     <string_content text="Bob" />
+            //                     <"\"" text="\"" />
+            //                 </string>
+            //             </binary_expression>
+            //             <whitespace text=" " />
+            //             <"]]" text="]]" />
+            //         </test_command>
+            //         <";" text=";" />
+            //         <whitespace text=" " />
+            //         <then text="then" />
+            //         <whitespace text="\n  " />
+            //         <command>
+            //             <command_name>
+            //                 <word text="echo" />
+            //             </command_name>
+            //             <whitespace text=" " />
+            //             <string>
+            //                 <"\"" text="\"" />
+            //                 <string_content text="Hi Bob!" />
+            //                 <"\"" text="\"" />
+            //             </string>
+            //         </command>
+            //         <whitespace text="\n" />
+            //     </elif_clause>
+            //     <else_clause>
+            //         <else text="else" />
+            //         <whitespace text="\n  " />
+            //         <command>
+            //             <command_name>
+            //                 <word text="echo" />
+            //             </command_name>
+            //             <whitespace text=" " />
+            //             <string>
+            //                 <"\"" text="\"" />
+            //                 <string_content text="Who are you?" />
+            //                 <"\"" text="\"" />
+            //             </string>
+            //         </command>
+            //         <whitespace text="\n" />
+            //     </else_clause>
+            //     <fi text="fi" />
+            // </if_statement>
         // TODO:
             // if, elif, else
             // for, while
@@ -634,3 +877,5 @@ function escapeJsKeyAccess(key) {
 }
 
 await FileSystem.write({path:`${FileSystem.thisFolder}/examples/main.sh.js`, data: translate(root), overwrite: true})
+
+

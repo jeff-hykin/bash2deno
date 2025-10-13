@@ -1,5 +1,5 @@
 import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"
-import { env } from "https://deno.land/x/quickr@0.8.6/main/env.js"
+import { env } from "https://deno.land/x/quickr@0.8.7/main/env.js"
 const $$ = (...args)=>$(...args).noThrow()
 const $stderr = [ Deno.stderr.readable, {preventClose:true} ]
 const appendTo = (pathString)=>$.path(pathString).openSync({ write: true, create: true, truncate: false })
@@ -11,7 +11,7 @@ env.name = `Alice`
 env.app_version = `1.2.3`
 env.number = `42`
 env.greeting = `Hello, ${env.name}!`
-////unset number
+delete env.number
 
 // ========== SET OPTIONS ==========
 ////set -euo pipefail  // Exit on error, undefined var is error, and pipe fails propagate
@@ -29,13 +29,16 @@ env.greeting = `Hello, ${env.name}!`
 // ========== CONTROL FLOW ==========
 
 // IF-ELSE
-////if [[ "$name" == "Alice" ]]; then
-////  echo "Hi Alice!"
-////elif [[ "$name" == "Bob" ]]; then
-////  echo "Hi Bob!"
-////else
-////  echo "Who are you?"
-////fi
+if ( `${env.name}` === `Alice`) { 
+  console.log(`Hi Alice!`)
+} else if ( `${env.name}` === `Bob`) { 
+  console.log(`Hi Bob!`)
+
+} else {
+
+  console.log(`Who are you?`)
+
+}
 
 // FOR LOOP
 ////for i in {1..3}; do
