@@ -5,6 +5,7 @@ const $stderr = [ Deno.stderr.readable, {preventClose:true} ]
 const appendTo = (pathString)=>$.path(pathString).openSync({ write: true, create: true, truncate: false })
 const overwrite = (pathString)=>$.path(pathString).openSync({ write: true, create: true })
 
+
 // ========== VARIABLE ASSIGNMENT ==========
 env.name = `Alice`
 env.name = `Alice`
@@ -103,10 +104,12 @@ await $$`ls somefile thatdoesnotexist`.stdout("null").stderr(overwrite(`err`))
 
 // ========== PIPES ==========
 await $$`ps aux | grep ${env.USER}`
+await $$`ps aux | echo ${env.USER}`
+await $$`echo aux | echo ${env.USER}`
 // alsdkjfasdj
 await $$`ps aux | grep ${env.USER} | grep -v 'double pipe'`;
 // alsdkjfasdj
-await $$`ps aux > /dev/null`;
+await $$`ps aux | grep ${env.USER} | grep -v 'double pipe and' > /dev/null`;
 // hi
 ////ps aux &>/dev/null | grep "$USER";
 ////ps aux 1>&2 2>/dev/null | grep "$USER";

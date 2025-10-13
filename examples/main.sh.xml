@@ -981,6 +981,60 @@
         </command>
     </pipeline>
     <whitespace text="\n" />
+    <pipeline>
+        <command>
+            <command_name>
+                <word text="ps" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </pipeline>
+    <whitespace text="\n" />
+    <pipeline>
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </pipeline>
+    <whitespace text="\n" />
     <comment text="# alsdkjfasdj" />
     <whitespace text="\n" />
     <pipeline>

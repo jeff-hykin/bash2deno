@@ -17,7 +17,8 @@ export function translate(code) {
     let usedAppend = false
     let usesHasCommand = false
     let usesFs = false
-
+    
+    let inPipeline = false
     function translateInner(node) {
         function convertArg(node) {
             // possible:
@@ -101,13 +102,7 @@ export function translate(code) {
             if (typeof nodes == "string") {
                 const root = parser.parse(": "+nodes).rootNode
                 nodes = root.quickQueryFirst(`(command)`).children.slice(2)
-
-                // console.debug(`xmlStylePreview(root) is:`,xmlStylePreview(root))
-                // console.debug(`args is:`,args)
-                // .children[0].children.slice(2,)
-                // console.debug(`nodes is:`,nodes)
             }
-            debug && console.debug(`nodes is:`,nodes)
             let currentArg = []
             let createNewArg = true // this is to handle annoying edge cases by lazily creating new args
             const args = []
@@ -291,7 +286,7 @@ export function translate(code) {
             if (usesFs) {
                 imports.push(`import fs from "node:fs"`)
             }
-            return imports.concat(helpers).join("\n")+contents
+            return imports.concat(helpers).join("\n")+"\n"+contents
         } else if (node.type == "whitespace") {
             return node.text
         // 
@@ -366,7 +361,7 @@ export function translate(code) {
                 // set
                 // 
                 return fallbackTranslate(node)
-            } else if (commandNameNode.text == "echo") {
+            } else if (commandNameNode.text == "echo" && !inPipeline) {
                 // slice gets rid of "echo "
                 // TODO: handle echo -n
                 const convertedArgs = convertArgs(node.children, {asArray: true})
@@ -402,7 +397,11 @@ export function translate(code) {
             //         <word text="/dev/null" />
             //     </file_redirect>
             // </redirected_statement>
-            const commandNode = node.quickQueryFirst(`(command)`)
+            const commandNode = node.children[0]
+            // const inner = translateInner(commandNode).slice(8)
+            console.debug(`commandNode.type is:`,commandNode.type)
+            const inner = commandNode.type == "command" ? convertArgs(commandNode.children) : translateInner(commandNode).slice(8)
+            console.debug(`inner is:`,inner)
             const redirects = node.quickQuery(`(file_redirect)`)
             const parseOutputRedirect = (redirectNode)=>{
                 const maybeFdNode = redirectNode.quickQueryFirst(`(file_descriptor)`)
@@ -493,7 +492,8 @@ export function translate(code) {
                 return target
             }
             if (redirects.length == 1) {
-                const convertedArgs = convertArgs(commandNode.children)
+                const convertedArgs = inner
+                // const convertedArgs = convertArgs(commandNode.children)
                 if (convertedArgs == null) {
                     return fallbackTranslate(node)
                 }
@@ -542,21 +542,25 @@ export function translate(code) {
                 if (stderrTarget) {
                     stderrString = `.stderr(${stderrTarget})`
                 }
-                return `await $$${convertArgs(commandNode.children).slice(0,-1)}\`${stdoutString}${stderrString}`
+                // convertArgs(commandNode.children)
+                return `await $$${inner.slice(0,-1)}\`${stdoutString}${stderrString}`
             }
         // 
         // pipes
         // 
         } else if (node.type == "pipeline") {
+            inPipeline = true
             const commands = node.children.filter(each=>each.type == `command`||each.type == `redirected_statement`)
             const pipeInMiddle = commands.some(each=>each.type == `pipeline`&&each!=commands.at(-1))
             if (pipeInMiddle) {
+                inPipeline = false
                 return fallbackTranslate(node)
             }
             const lastCommand = commands.at(-1)
             const lastCommandConverted = translateInner(lastCommand)
             let failed = fallbackTranslate(lastCommand) == lastCommandConverted
             if (failed) {
+                inPipeline = false
                 return fallbackTranslate(node)
             }
             const otherCommandsConverted = commands.slice(0,-1).map(each=>convertArgs(each.children))
@@ -569,11 +573,15 @@ export function translate(code) {
             }
             // check failed
             if (failed) {
+                inPipeline = false
                 return fallbackTranslate(node)
             }
             // little bit hacky, cleanup later
             const lastPart = lastCommandConverted.replace(/^await \$\$\`/,"")
+            console.debug(`otherCommandsConverted is:`,otherCommandsConverted)
             const coreCommand = [ ...otherCommandsConverted.map(each=>each.slice(1,-1)), lastPart ].join(" | ")
+            console.debug(`coreCommand is:`,coreCommand)
+            inPipeline = false
             return `await $$\`${coreCommand}`
         // 
         // chaining

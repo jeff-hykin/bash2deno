@@ -92,6 +92,8 @@ ls somefile thatdoesnotexist 1>/dev/null 2>err
 
 # ========== PIPES ==========
 ps aux | grep "$USER"
+ps aux | echo "$USER"
+echo aux | echo "$USER"
 # alsdkjfasdj
 ps aux | grep "$USER" | grep -v "double pipe";
 # alsdkjfasdj
