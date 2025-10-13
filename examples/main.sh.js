@@ -101,10 +101,19 @@ await $$`ps aux | grep ${env.USER} | grep -v 'double pipe'`;
 // alsdkjfasdj
 await $$`ps aux > /dev/null`;
 // hi
-////ps aux &>/dev/null | grep "$USER"
-////ps aux 1>&2 2>/dev/null | grep "$USER"
-await $$`ps aux`
-////mkdir -p /tmp/demo && echo "Created demo dir" || echo "Failed to create dir"
+////ps aux &>/dev/null | grep "$USER";
+////ps aux 1>&2 2>/dev/null | grep "$USER";
+await $$`ps aux | grep ${env.USER} | grep -v grep`;
+// TODO: tree-sitter parser doesn't like this part without semicolons for some reason
+////cat <<< 'hello';
+////diff <(ls dir1) <(ls dir2);
+////paste <(ls dir1) <(ls dir2);
+
+// ========== CHAINING ==========
+await $$`mkdir -p '/tmp/demo' || echo hi`
+await $$`mkdir -p '/tmp/demo' && echo 'Created demo dir' && echo 'Created demo dir' && echo 'Created demo dir'`
+await $$`mkdir -p '/tmp/demo' && echo 'Created demo dir' || echo 'Failed to create dir'`
+await $$`mkdir -p '/tmp/demo' && echo 'Created demo dir' || echo 'Created demo dir' && echo 'Created demo dir'`
 
 // ========== ESCAPING ==========
 

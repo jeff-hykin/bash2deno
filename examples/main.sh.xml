@@ -1116,6 +1116,7 @@
             </string>
         </command>
     </pipeline>
+    <";" text=";" />
     <whitespace text="\n" />
     <pipeline>
         <redirected_statement>
@@ -1157,6 +1158,7 @@
             </string>
         </command>
     </pipeline>
+    <";" text=";" />
     <whitespace text="\n" />
     <pipeline>
         <command>
@@ -1169,109 +1171,163 @@
         <whitespace text=" " />
         <"|" text="|" />
         <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="-v" />
+            <whitespace text=" " />
+            <word text="grep" />
+        </command>
+    </pipeline>
+    <";" text=";" />
+    <whitespace text="\n" />
+    <comment text="# TODO: tree-sitter parser doesn't like this part without semicolons for some reason" />
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="cat" />
+        </command_name>
+        <whitespace text=" " />
+        <herestring_redirect>
+            <"<<<" text="<<<" />
+            <whitespace text=" " />
+            <raw_string text="'hello'" />
+        </herestring_redirect>
+    </command>
+    <";" text=";" />
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="diff" />
+        </command_name>
+        <whitespace text=" " />
+        <process_substitution>
+            <"<(" text="<(" />
+            <command>
+                <command_name>
+                    <word text="ls" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="dir1" />
+            </command>
+            <")" text=")" />
+        </process_substitution>
+        <whitespace text=" " />
+        <process_substitution>
+            <"<(" text="<(" />
+            <command>
+                <command_name>
+                    <word text="ls" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="dir2" />
+            </command>
+            <")" text=")" />
+        </process_substitution>
+    </command>
+    <";" text=";" />
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="paste" />
+        </command_name>
+        <whitespace text=" " />
+        <process_substitution>
+            <"<(" text="<(" />
+            <command>
+                <command_name>
+                    <word text="ls" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="dir1" />
+            </command>
+            <")" text=")" />
+        </process_substitution>
+        <whitespace text=" " />
+        <process_substitution>
+            <"<(" text="<(" />
+            <command>
+                <command_name>
+                    <word text="ls" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="dir2" />
+            </command>
+            <")" text=")" />
+        </process_substitution>
+    </command>
+    <";" text=";" />
+    <whitespace text="\n\n" />
+    <comment text="# ========== CHAINING ==========" />
+    <whitespace text="\n" />
+    <list>
+        <command>
+            <command_name>
+                <word text="mkdir" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="-p" />
+            <whitespace text=" " />
+            <word text="/tmp/demo" />
+        </command>
+        <whitespace text=" " />
+        <"||" text="||" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="hi" />
+        </command>
+    </list>
+    <whitespace text="\n" />
+    <list>
         <list>
-            <pipeline>
+            <list>
                 <command>
                     <command_name>
-                        <word text="grep" />
+                        <word text="mkdir" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <word text="-p" />
+                    <whitespace text=" " />
+                    <word text="/tmp/demo" />
+                </command>
+                <whitespace text=" " />
+                <"&&" text="&&" />
+                <whitespace text=" " />
+                <command>
+                    <command_name>
+                        <word text="echo" />
                     </command_name>
                     <whitespace text=" " />
                     <string>
                         <"\"" text="\"" />
-                        <simple_expansion>
-                            <"$" text="$" />
-                            <variable_name text="USER" />
-                        </simple_expansion>
+                        <string_content text="Created demo dir" />
                         <"\"" text="\"" />
                     </string>
                 </command>
-                <whitespace text=" " />
-                <"|" text="|" />
-                <whitespace text=" " />
-                <command>
-                    <command_name>
-                        <word text="grep" />
-                    </command_name>
-                    <whitespace text=" " />
-                    <word text="-v" />
-                    <whitespace text=" " />
-                    <word text="grep" />
-                    <whitespace text="\n" />
-                    <word text="cat" />
-                    <whitespace text=" " />
-                    <herestring_redirect>
-                        <"<<<" text="<<<" />
-                        <whitespace text=" " />
-                        <raw_string text="'hello'" />
-                    </herestring_redirect>
-                    <whitespace text="\n" />
-                    <word text="diff" />
-                    <whitespace text=" " />
-                    <process_substitution>
-                        <"<(" text="<(" />
-                        <command>
-                            <command_name>
-                                <word text="ls" />
-                            </command_name>
-                            <whitespace text=" " />
-                            <word text="dir1" />
-                        </command>
-                        <")" text=")" />
-                    </process_substitution>
-                    <whitespace text=" " />
-                    <process_substitution>
-                        <"<(" text="<(" />
-                        <command>
-                            <command_name>
-                                <word text="ls" />
-                            </command_name>
-                            <whitespace text=" " />
-                            <word text="dir2" />
-                        </command>
-                        <")" text=")" />
-                    </process_substitution>
-                    <whitespace text="\n" />
-                    <word text="paste" />
-                    <whitespace text=" " />
-                    <process_substitution>
-                        <"<(" text="<(" />
-                        <command>
-                            <command_name>
-                                <word text="ls" />
-                            </command_name>
-                            <whitespace text=" " />
-                            <word text="dir1" />
-                        </command>
-                        <")" text=")" />
-                    </process_substitution>
-                    <whitespace text=" " />
-                    <process_substitution>
-                        <"<(" text="<(" />
-                        <command>
-                            <command_name>
-                                <word text="ls" />
-                            </command_name>
-                            <whitespace text=" " />
-                            <word text="dir2" />
-                        </command>
-                        <")" text=")" />
-                    </process_substitution>
-                    <whitespace text="\n\n" />
-                    <comment text="# ========== CHAINING ==========" />
-                    <whitespace text="\n" />
-                    <word text="mkdir" />
-                    <whitespace text=" " />
-                    <word text="-p" />
-                    <whitespace text=" " />
-                    <word text="/tmp/demo" />
-                    <whitespace text="\n" />
-                    <word text="mkdir" />
-                    <whitespace text=" " />
-                    <word text="-p" />
-                    <whitespace text=" " />
-                    <word text="/tmp/demo" />
-                </command>
-            </pipeline>
+            </list>
             <whitespace text=" " />
             <"&&" text="&&" />
             <whitespace text=" " />
@@ -1287,7 +1343,21 @@
                 </string>
             </command>
         </list>
-    </pipeline>
+        <whitespace text=" " />
+        <"&&" text="&&" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <string_content text="Created demo dir" />
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </list>
     <whitespace text="\n" />
     <list>
         <list>
@@ -1326,6 +1396,64 @@
             <string>
                 <"\"" text="\"" />
                 <string_content text="Failed to create dir" />
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </list>
+    <whitespace text="\n" />
+    <list>
+        <list>
+            <list>
+                <command>
+                    <command_name>
+                        <word text="mkdir" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <word text="-p" />
+                    <whitespace text=" " />
+                    <word text="/tmp/demo" />
+                </command>
+                <whitespace text=" " />
+                <"&&" text="&&" />
+                <whitespace text=" " />
+                <command>
+                    <command_name>
+                        <word text="echo" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <string_content text="Created demo dir" />
+                        <"\"" text="\"" />
+                    </string>
+                </command>
+            </list>
+            <whitespace text=" " />
+            <"||" text="||" />
+            <whitespace text=" " />
+            <command>
+                <command_name>
+                    <word text="echo" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <string_content text="Created demo dir" />
+                    <"\"" text="\"" />
+                </string>
+            </command>
+        </list>
+        <whitespace text=" " />
+        <"&&" text="&&" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <string_content text="Created demo dir" />
                 <"\"" text="\"" />
             </string>
         </command>

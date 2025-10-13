@@ -36,6 +36,7 @@ await FileSystem.write({path:`${FileSystem.thisFolder}/examples/main.sh.xml`, da
     // set pipefail
     // heredocs
     // diff <(ls dir1) <(ls dir2)
+    // bracket sub shell echo hi && { echo bye; } && echo final
 // 3.0 goal:
     // background tasks (&)
     // arrays
@@ -463,7 +464,6 @@ function translate(node) {
             }
             const lastCommand = commands.at(-1)
             const lastCommandConverted = translateInner(lastCommand)
-            console.debug(`lastCommandConverted is:`,lastCommandConverted)
             let failed = fallbackTranslate(lastCommand) == lastCommandConverted
             if (failed) {
                 return fallbackTranslate(node)
@@ -472,8 +472,7 @@ function translate(node) {
             for (const [cmd, each] of zipLong(commands.slice(0,-1), otherCommandsConverted)) {
                 if (each == null) {
                     failed = true
-                    console.debug(`commands is:`,commands.map(xmlStylePreview).join("\n"))
-                    console.warn(`failed to convert command:`,cmd.text)
+                    console.warn(`[pipeline] failed to convert command:`,cmd.text)
                     break
                 }
             }
@@ -485,6 +484,61 @@ function translate(node) {
             const lastPart = lastCommandConverted.replace(/^await \$\$\`/,"")
             const coreCommand = [ ...otherCommandsConverted.map(each=>each.slice(1,-1)), lastPart ].join(" | ")
             return `await $$\`${coreCommand}`
+        } else if (node.type == "list") {
+            function convertList(node) {
+                const commands = node.children.filter(each=>each.type == `command`||each.type == `redirected_statement`||each.type == `list`)
+                const isOr = node.children.some(each=>each.type == `||`)
+                const joiner = isOr ? "||" : "&&"
+                const baseCommands = ["command","redirected_statement"]
+                const recurseIfNeeded = (each)=>{
+                    if (each.type == "list") {
+                        return convertList(each)
+                    } else {
+                        return each
+                    }
+                }
+                // base case
+                if (commands.length != 2) {
+                    console.warn(`[list] unsupported list:`,node.text)
+                } else {
+                    return [ recurseIfNeeded(commands[0]), joiner, recurseIfNeeded(commands[1]) ].flat(Infinity)
+                }
+            }
+            const cmds = convertList(node)
+            let escaped = []
+            var i=-1
+            for (var each of cmds) {
+                i++
+                const isLast = each == cmds.at(-1)
+                if (isLast) {
+                    if (each.type == "redirected_statement") {
+                        const front = `await $$\``.length
+                        const bad = fallbackTranslate(each)
+                        const trans = translateInner(each)
+                        if (bad == trans) {
+                            console.warn(`[list] failed to convert redirected statement:`,each.text)
+                            return fallbackTranslate(node)
+                        }
+                        escaped.push(trans.slice(front))
+                        break
+                    }
+                }
+                if (each == "&&" || each == "||") {
+                    escaped.push(each)
+                    continue
+                }
+                const cmd = convertArgs(each.children).slice(1,-1)
+                if (cmd == null) {
+                    console.warn(`[list] failed to convert command:`,each.text)
+                    return fallbackTranslate(node)
+                }
+                // normal command convert
+                escaped.push(
+                    cmd + (isLast?"`":"")
+                )
+            }
+
+            return `await $$\`${escaped.join(" ")}`
             // node.quickQueryFirst(`(command) @firstCommand`).firstCommand
             // return translateInner(node.children[0])
         // TODO:
