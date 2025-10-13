@@ -820,16 +820,20 @@ export function translate(code) {
                 nodes.push(each)
             }
             const forPart = nodes.map(each=>each.text).join("")
+            let match
             let front = fallbackTranslate({text:forPart})
-            let match = forPart.match(/^for\s+(.+?)\s+in\s+(.+?)\s*;?\s*$/)
-            if (match) {
+            if (match=forPart.match(/for\s+(\w+)\s+in\s+"\$@"\s*;?/)) {
+                usedVars = true
+                front = `for (env${escapeJsKeyAccess(match[1])} of Deno.args) `
+            } else if (match = forPart.match(/^for\s+(.+?)\s+in\s+(.+?)\s*;?\s*$/)) {
                 const [, varName, inExpr] = match
                 if (inExpr.match(/^{(\d+)\.\.(\d+)}$/)) {
                     const [ , start, end ] = inExpr.match(/^{(\d+)\.\.(\d+)}$/)
-                    front = `for (env.${escapeJsKeyAccess(varName)} = ${start}; env.${escapeJsKeyAccess(varName)} <= ${end}; env.${escapeJsKeyAccess(varName)}++) {`
+                    usedVars = true
+                    front = `for (env${escapeJsKeyAccess(varName)} = ${start}; env${escapeJsKeyAccess(varName)} <= ${end}; env${escapeJsKeyAccess(varName)}++) {`
                 }
             }
-            return fallbackTranslate({text: forPart}) + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`))
+            return front + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`))
         // 
         // while
         // 
