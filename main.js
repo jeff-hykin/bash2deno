@@ -178,7 +178,7 @@ function translate(node) {
                         }).join("")
                     )
                 }
-                return escapeJsString(argStrings.join(" "))
+                return "`"+argStrings.join(" ")+"`"
             }
         }
         const fallbackTranslate = (node)=>"////" + node.text.replace(/\n/g, "\n////")
@@ -402,7 +402,6 @@ function translate(node) {
             }
             if (redirects.length == 1) {
                 const convertedArgs = convertArgs(commandNode.children)
-                console.debug(`convertedArgs is:`,convertedArgs.slice(0,-1))
                 if (convertedArgs == null) {
                     return fallbackTranslate(node)
                 }
@@ -421,7 +420,9 @@ function translate(node) {
                 let stderrTarget
                 for (const each of redirects) {
                     let redirect = parseOutputRedirect(each)
-                    console.debug(`redirect is:`,redirect)
+                    if (redirect == null) {
+                        return fallbackTranslate(node)
+                    }
                     if (redirect.source == "1" || redirect.source == "&") {
                         stdoutTarget = redirect.target
                     }
@@ -429,8 +430,6 @@ function translate(node) {
                         stderrTarget = redirect.target
                     }
                 }
-                console.debug(`stdoutTarget  is:`,stdoutTarget   )
-                console.debug(`stderrTarget is:`,stderrTarget)
                 // bash is weird. This is for: ps aux > /dev/null 2>&1
                 // both stdout and stderr are redirected to /dev/null
                 // but here they're swapped: ps aux 1>&2 2>&1
@@ -455,8 +454,34 @@ function translate(node) {
                 return `await $$${convertArgs(commandNode.children).slice(0,-1)}\`${stdoutString}${stderrString}`
             }
         } else if (node.type == "pipeline") {
-            const commands = []
-            return fallbackTranslate(node)
+            const commands = node.children.filter(each=>each.type == `command`||each.type == `redirected_statement`)
+            const pipeInMiddle = commands.some(each=>each.type == `pipeline`&&each!=commands.at(-1))
+            if (pipeInMiddle) {
+                return fallbackTranslate(node)
+            }
+            const lastCommand = commands.at(-1)
+            const lastCommandConverted = translateInner(lastCommand)
+            console.debug(`lastCommandConverted is:`,lastCommandConverted)
+            let failed = fallbackTranslate(lastCommand) == lastCommandConverted
+            if (failed) {
+                return fallbackTranslate(node)
+            }
+            const otherCommandsConverted = commands.slice(0,-1).map(each=>convertArgs(each.children))
+            for (const [cmd, each] of zipLong(commands.slice(0,-1), otherCommandsConverted)) {
+                if (each == null) {
+                    failed = true
+                    console.warn(`failed to convert command:`,cmd.text)
+                    break
+                }
+            }
+            // check failed
+            if (failed) {
+                return fallbackTranslate(node)
+            }
+            // little bit hacky, cleanup later
+            const lastPart = lastCommandConverted.replace(/^await \$\$\`/,"")
+            const coreCommand = [ ...otherCommandsConverted.map(each=>each.slice(1,-1)), lastPart ].join(" | ")
+            return `await $$\`${coreCommand}`
             // node.quickQueryFirst(`(command) @firstCommand`).firstCommand
             // return translateInner(node.children[0])
         // TODO:
@@ -530,6 +555,9 @@ function aggregateStrings(array) {
     return result
 }
 function shellEscapeArg(str) {
+    if (str.length == 0) {
+        return ``
+    }
     if (str.match(/^\w+$/)) {
         return str
     } else {

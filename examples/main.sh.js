@@ -79,7 +79,7 @@ env.filename = `archive.tar.gz`
 console.log(`Base name: \${filename%%.*}`)         // Remove longest match from end
 console.log(`Extension: \${filename##*.}`)         // Remove longest match from start
 
-// ========== COMMANDS & PIPELINES ==========
+// ========== REDIRECTS ==========
 
 console.log(`User processes:`)
 await $$`ps aux`
@@ -90,28 +90,33 @@ await $$`ps aux`.stdout(appendTo(`./somefile`)).stderr(appendTo(`./somefile`))
 await $$`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
 await $$`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
 await $$`ps aux`.stdout(...$stderr).stderr(...$stderr)
-// ps aux 2> >(cat)
-// ps aux | grep "$USER"
-// ps aux &>/dev/null | grep "$USER"
-// ps aux 1>&2 2>/dev/null | grep "$USER"
-// ps aux | grep "$USER" | grep -v grep
-// cat <<< 'hello'
-// ls somefile thatdoesnotexist 1>/dev/null 2> >(grep "No such")
-// diff <(ls dir1) <(ls dir2)
-// paste <(ls dir1) <(ls dir2)
+await $$`ps aux 2> >(cat)`
 
-// # ========== CHAINING ==========
-// mkdir -p /tmp/demo
-// mkdir -p /tmp/demo && echo "Created demo dir"
-// mkdir -p /tmp/demo && echo "Created demo dir" || echo "Failed to create dir"
+// ========== PIPES ==========
+await $$`ps aux | grep ${env.USER}`
+////ps aux | grep "$USER" | grep -v "double pipe"
+////ps aux | grep "$USER" | grep -v "double pipe and" > /dev/null
+////# hi
+////ps aux &>/dev/null | grep "$USER"
+////ps aux 1>&2 2>/dev/null | grep "$USER"
+await $$`ps aux | grep ${env.USER} | grep '-v' grep`
+////cat <<< 'hello'
+////ls somefile thatdoesnotexist 1>/dev/null 2> >(grep "No such")
+////diff <(ls dir1) <(ls dir2)
+////paste <(ls dir1) <(ls dir2)
 
-// # ========== ESCAPING ==========
+// ========== CHAINING ==========
+await $$`mkdir '-p' '/tmp/demo'`
+////mkdir -p /tmp/demo && echo "Created demo dir"
+////mkdir -p /tmp/demo && echo "Created demo dir" || echo "Failed to create dir"
 
-// echo "This is a quote: \" and this is a backslash: \\"
+// ========== ESCAPING ==========
 
-// # ========== CALL FUNCTION ==========
-// say_hello "$name"
-// greet "Bob"
+console.log(`This is a quote: " and this is a backslash: \\`)
 
-// # ========== END ==========
-// echo "Script completed successfully!"
+// ========== CALL FUNCTION ==========
+await $$`say_hello ${env.name}`
+await $$`greet Bob`
+
+// ========== END ==========
+console.log(`Script completed successfully!`)

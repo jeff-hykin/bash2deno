@@ -744,7 +744,7 @@
     <whitespace text="         " />
     <comment text="# Remove longest match from start" />
     <whitespace text="\n\n" />
-    <comment text="# ========== COMMANDS & PIPELINES ==========" />
+    <comment text="# ========== REDIRECTS ==========" />
     <whitespace text="\n\n" />
     <command>
         <command_name>
@@ -900,44 +900,500 @@
         </file_redirect>
     </redirected_statement>
     <whitespace text="\n" />
-    <comment text="# ps aux 2> >(cat)" />
-    <whitespace text="\n" />
-    <comment text="# ps aux | grep \"$USER\"" />
-    <whitespace text="\n" />
-    <comment text="# ps aux &>/dev/null | grep \"$USER\"" />
-    <whitespace text="\n" />
-    <comment text="# ps aux 1>&2 2>/dev/null | grep \"$USER\"" />
-    <whitespace text="\n" />
-    <comment text="# ps aux | grep \"$USER\" | grep -v grep" />
-    <whitespace text="\n" />
-    <comment text="# cat <<< 'hello'" />
-    <whitespace text="\n" />
-    <comment text="# ls somefile thatdoesnotexist 1>/dev/null 2> >(grep \"No such\")" />
-    <whitespace text="\n" />
-    <comment text="# diff <(ls dir1) <(ls dir2)" />
-    <whitespace text="\n" />
-    <comment text="# paste <(ls dir1) <(ls dir2)" />
+    <redirected_statement>
+        <command>
+            <command_name>
+                <word text="ps" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <file_redirect>
+            <file_descriptor text="2" />
+            <">" text=">" />
+            <whitespace text=" " />
+            <process_substitution>
+                <">(" text=">(" />
+                <command>
+                    <command_name>
+                        <word text="cat" />
+                    </command_name>
+                </command>
+                <")" text=")" />
+            </process_substitution>
+        </file_redirect>
+    </redirected_statement>
     <whitespace text="\n\n" />
-    <comment text="# # ========== CHAINING ==========" />
+    <comment text="# ========== PIPES ==========" />
     <whitespace text="\n" />
-    <comment text="# mkdir -p /tmp/demo" />
+    <pipeline>
+        <command>
+            <command_name>
+                <word text="ps" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </pipeline>
     <whitespace text="\n" />
-    <comment text="# mkdir -p /tmp/demo && echo \"Created demo dir\"" />
+    <pipeline>
+        <command>
+            <command_name>
+                <word text="ps" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <redirected_statement>
+            <pipeline>
+                <command>
+                    <command_name>
+                        <word text="grep" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <simple_expansion>
+                            <"$" text="$" />
+                            <variable_name text="USER" />
+                        </simple_expansion>
+                        <"\"" text="\"" />
+                    </string>
+                </command>
+                <whitespace text=" " />
+                <"|" text="|" />
+                <whitespace text=" " />
+                <redirected_statement>
+                    <pipeline>
+                        <command>
+                            <command_name>
+                                <word text="grep" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <word text="-v" />
+                            <whitespace text=" " />
+                            <string>
+                                <"\"" text="\"" />
+                                <string_content text="double pipe" />
+                                <"\"" text="\"" />
+                            </string>
+                            <whitespace text="\n" />
+                            <word text="ps" />
+                            <whitespace text=" " />
+                            <word text="aux" />
+                        </command>
+                        <whitespace text=" " />
+                        <"|" text="|" />
+                        <whitespace text=" " />
+                        <command>
+                            <command_name>
+                                <word text="grep" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <string>
+                                <"\"" text="\"" />
+                                <simple_expansion>
+                                    <"$" text="$" />
+                                    <variable_name text="USER" />
+                                </simple_expansion>
+                                <"\"" text="\"" />
+                            </string>
+                        </command>
+                        <whitespace text=" " />
+                        <"|" text="|" />
+                        <whitespace text=" " />
+                        <command>
+                            <command_name>
+                                <word text="grep" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <word text="-v" />
+                            <whitespace text=" " />
+                            <string>
+                                <"\"" text="\"" />
+                                <string_content text="double pipe and" />
+                                <"\"" text="\"" />
+                            </string>
+                        </command>
+                    </pipeline>
+                    <whitespace text=" " />
+                    <file_redirect>
+                        <">" text=">" />
+                        <whitespace text=" " />
+                        <word text="/dev/null" />
+                        <whitespace text="\n" />
+                        <comment text="# hi" />
+                        <whitespace text="\n" />
+                        <word text="ps" />
+                        <whitespace text=" " />
+                        <word text="aux" />
+                    </file_redirect>
+                    <whitespace text=" " />
+                    <file_redirect>
+                        <"&>" text="&>" />
+                        <word text="/dev/null" />
+                    </file_redirect>
+                </redirected_statement>
+                <whitespace text=" " />
+                <"|" text="|" />
+                <whitespace text=" " />
+                <command>
+                    <command_name>
+                        <word text="grep" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <simple_expansion>
+                            <"$" text="$" />
+                            <variable_name text="USER" />
+                        </simple_expansion>
+                        <"\"" text="\"" />
+                    </string>
+                    <whitespace text="\n" />
+                    <word text="ps" />
+                    <whitespace text=" " />
+                    <word text="aux" />
+                </command>
+            </pipeline>
+            <whitespace text=" " />
+            <file_redirect>
+                <file_descriptor text="1" />
+                <">&" text=">&" />
+                <number text="2" />
+            </file_redirect>
+            <whitespace text=" " />
+            <file_redirect>
+                <file_descriptor text="2" />
+                <">" text=">" />
+                <word text="/dev/null" />
+            </file_redirect>
+        </redirected_statement>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </pipeline>
     <whitespace text="\n" />
-    <comment text="# mkdir -p /tmp/demo && echo \"Created demo dir\" || echo \"Failed to create dir\"" />
+    <pipeline>
+        <command>
+            <command_name>
+                <word text="ps" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="-v" />
+            <whitespace text=" " />
+            <word text="grep" />
+        </command>
+    </pipeline>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="cat" />
+        </command_name>
+        <whitespace text=" " />
+        <herestring_redirect>
+            <"<<<" text="<<<" />
+            <whitespace text=" " />
+            <raw_string text="'hello'" />
+        </herestring_redirect>
+    </command>
+    <whitespace text="\n" />
+    <redirected_statement>
+        <command>
+            <command_name>
+                <word text="ls" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="somefile" />
+            <whitespace text=" " />
+            <word text="thatdoesnotexist" />
+        </command>
+        <whitespace text=" " />
+        <file_redirect>
+            <file_descriptor text="1" />
+            <">" text=">" />
+            <word text="/dev/null" />
+        </file_redirect>
+        <whitespace text=" " />
+        <file_redirect>
+            <file_descriptor text="2" />
+            <">" text=">" />
+            <whitespace text=" " />
+            <process_substitution>
+                <">(" text=">(" />
+                <command>
+                    <command_name>
+                        <word text="grep" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <string_content text="No such" />
+                        <"\"" text="\"" />
+                    </string>
+                </command>
+                <")" text=")" />
+            </process_substitution>
+        </file_redirect>
+    </redirected_statement>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="diff" />
+        </command_name>
+        <whitespace text=" " />
+        <process_substitution>
+            <"<(" text="<(" />
+            <command>
+                <command_name>
+                    <word text="ls" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="dir1" />
+            </command>
+            <")" text=")" />
+        </process_substitution>
+        <whitespace text=" " />
+        <process_substitution>
+            <"<(" text="<(" />
+            <command>
+                <command_name>
+                    <word text="ls" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="dir2" />
+            </command>
+            <")" text=")" />
+        </process_substitution>
+    </command>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="paste" />
+        </command_name>
+        <whitespace text=" " />
+        <process_substitution>
+            <"<(" text="<(" />
+            <command>
+                <command_name>
+                    <word text="ls" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="dir1" />
+            </command>
+            <")" text=")" />
+        </process_substitution>
+        <whitespace text=" " />
+        <process_substitution>
+            <"<(" text="<(" />
+            <command>
+                <command_name>
+                    <word text="ls" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="dir2" />
+            </command>
+            <")" text=")" />
+        </process_substitution>
+    </command>
     <whitespace text="\n\n" />
-    <comment text="# # ========== ESCAPING ==========" />
-    <whitespace text="\n\n" />
-    <comment text="# echo \"This is a quote: \\\" and this is a backslash: \\\\\"" />
-    <whitespace text="\n\n" />
-    <comment text="# # ========== CALL FUNCTION ==========" />
+    <comment text="# ========== CHAINING ==========" />
     <whitespace text="\n" />
-    <comment text="# say_hello \"$name\"" />
+    <command>
+        <command_name>
+            <word text="mkdir" />
+        </command_name>
+        <whitespace text=" " />
+        <word text="-p" />
+        <whitespace text=" " />
+        <word text="/tmp/demo" />
+    </command>
     <whitespace text="\n" />
-    <comment text="# greet \"Bob\"" />
+    <list>
+        <command>
+            <command_name>
+                <word text="mkdir" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="-p" />
+            <whitespace text=" " />
+            <word text="/tmp/demo" />
+        </command>
+        <whitespace text=" " />
+        <"&&" text="&&" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <string_content text="Created demo dir" />
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </list>
+    <whitespace text="\n" />
+    <list>
+        <list>
+            <command>
+                <command_name>
+                    <word text="mkdir" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="-p" />
+                <whitespace text=" " />
+                <word text="/tmp/demo" />
+            </command>
+            <whitespace text=" " />
+            <"&&" text="&&" />
+            <whitespace text=" " />
+            <command>
+                <command_name>
+                    <word text="echo" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <string_content text="Created demo dir" />
+                    <"\"" text="\"" />
+                </string>
+            </command>
+        </list>
+        <whitespace text=" " />
+        <"||" text="||" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <string_content text="Failed to create dir" />
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </list>
     <whitespace text="\n\n" />
-    <comment text="# # ========== END ==========" />
+    <comment text="# ========== ESCAPING ==========" />
+    <whitespace text="\n\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="This is a quote: \\\" and this is a backslash: \\\\" />
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <whitespace text="\n\n" />
+    <comment text="# ========== CALL FUNCTION ==========" />
     <whitespace text="\n" />
-    <comment text="# echo \"Script completed successfully!\"" />
+    <command>
+        <command_name>
+            <word text="say_hello" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <simple_expansion>
+                <"$" text="$" />
+                <variable_name text="name" />
+            </simple_expansion>
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="greet" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="Bob" />
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <whitespace text="\n\n" />
+    <comment text="# ========== END ==========" />
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="Script completed successfully!" />
+            <"\"" text="\"" />
+        </string>
+    </command>
     <whitespace text="\n" />
 </program>
