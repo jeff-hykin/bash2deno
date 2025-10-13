@@ -1,5 +1,5 @@
 import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"
-import { env } from "https://deno.land/x/quickr@0.8.7/main/env.js"
+import { env } from "https://deno.land/x/quickr@0.8.8/main/env.js"
 const $$ = (...args)=>$(...args).noThrow()
 const $stderr = [ Deno.stderr.readable, {preventClose:true} ]
 const appendTo = (pathString)=>$.path(pathString).openSync({ write: true, create: true, truncate: false })
@@ -12,16 +12,18 @@ env.name = `Alice`
 env.app_version = `1.2.3`
 env.number = `42`
 env.greeting = `Hello, ${env.name}!`
+env.file_count = await $$`ls | wc -l`.text()
 delete env.number
 
 // ========== SET OPTIONS ==========
 ////set -euo pipefail  // Exit on error, undefined var is error, and pipe fails propagate
 
 // ========== FUNCTION DEFINITION ==========
-////say_hello() {
-////  local who="${1:-World}"  # Default parameter
-////  echo "Hello, $who!"
-////}
+// FIXME: bash function: say_hello() 
+function say_hello() {
+  env.who = `\${1:-World}`  // Default parameter
+  await $$`echo 'Hello", '${env.who}'!'`
+}
 
 // ========== ALIASES ==========
 ////alias ll='ls -lah'
@@ -30,29 +32,35 @@ delete env.number
 // ========== CONTROL FLOW ==========
 
 // IF-ELSE
-if ( parseFloat(`${env.name}`) === `Alice`) { 
-  console.log(`Hi Alice!`)
-} else if ( parseFloat(`${env.name}`) === `Bob`) { 
-  console.log(`Hi Bob!`)
+if ( `${env.name}` === `Alice`) { 
+  await $$`echo 'Hi Alice!'`
+} else if ( `${env.name}` === `Bob`) { 
+  await $$`echo 'Hi Bob!'`
 
 } else {
 
-  console.log(`Who are you?`)
+  await $$`echo 'Who are you?'`
 
 }
 
 // FOR LOOP
-////for i in {1..3}; {
+for (env.i = 1; env.i <= 3; env.i++) {{
 
-  console.log(`Loop #${env.i}`)
+  await $$`echo 'Loop #'${env.i}`
+
+}
+// for each argument (in a argument-might-have-spaces friendly way)
+for (env.arg of Deno.args) {
+
+    await $$`echo ${env.arg}`
 
 }
 
 // WHILE LOOP
 env.counter = `0`
-while (parseFloat(`${env.counter}`) < 3) {
+while (env.counter < 3) {
 
-  console.log(`Counter: ${env.counter}`)
+  await $$`echo 'Counter: '${env.counter}`
   ////((counter++))) {
 
 }
@@ -79,7 +87,7 @@ console.log(`double quote with escapes "`)
 console.log(`double ${env.dollar}`)
 ////echo "double subshell $(echo hi)"
 console.log(`${env.dollar}connection`)
-////echo `backticks`
+console.log(`${`await $$`backticks``.text()}`)
 console.log(`Greeting: ${env.greeting}`)
 console.log(`Greeting upper: \${greeting^^}`)      // Uppercase
 console.log(`Greeting length: \${#greeting}`)      // Length

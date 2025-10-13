@@ -7,6 +7,39 @@ import { isValidKeyLiteral } from 'https://esm.sh/gh/jeff-hykin/good-js@1.18.2.0
 import { zipLong } from 'https://esm.sh/gh/jeff-hykin/good-js@1.18.2.0/source/flattened/zip_long.js'
 const parser = await createParser(bash) // path or Uint8Array
 
+// 1.0 goal:
+    // sub shells
+    // fixup args/env special env
+    // splats
+    // OS checks
+    // handle "$@"
+    // case 
+    // DONE: basic redirection
+    // DONE: chained pipeline
+    // DONE: unset
+    // DONE: && ||
+    // DONE if elif else
+         // DONE: string compare
+         // DONE: number compare
+         // DONE: is executable
+         // DONE: is file
+         // DONE: is directory
+    // done: basic for loops
+// 2.0 goal:
+    // alias
+    // set pipefail
+    // bracket sub shell echo hi && { echo bye; } && echo final
+    // env for specific command. E.g. `PATH=/bin echo`
+    // backticks
+    // has-command (which and $(command -v ))
+    // function
+    // heredocs
+// 3.0 goal:
+    // diff <(ls dir1) <(ls dir2)
+    // background tasks (&)
+    // arrays
+
+
 export function translate(code) {
     const node = parser.parse(code).rootNode
     let usedVars = false
@@ -19,7 +52,7 @@ export function translate(code) {
     let usesFs = false
     
     let inPipeline = false
-    function translateInner(node) {
+    function translateInner(node, {topLevel=false}={}) {
         function convertArg(node) {
             // possible:
                 // <raw_string>
@@ -32,7 +65,6 @@ export function translate(code) {
                 // <string>
                 // <brace_expression>
                 // <expansion>
-                // <command_substitution>
                 // <concatenation>
                 // <ansi_c_string> AKA $''
             if (node.type == "word"||node.type == "number") {
@@ -42,25 +74,22 @@ export function translate(code) {
                 // TODO: some brace expansion ends up here
                 // FIXME: probably some other special stuff like !
                 return escapeJsString(text).slice(1, -1)
+            } else if (node.type == "command_substitution") {
+                return `\${${node.children.map(translateInner).join("")}.text()}`
             } else if (node.type == "raw_string") {
                 return escapeJsString(node.text.slice(1, -1)).slice(1, -1)
             } else if (node.type == "simple_expansion") {
-                let text = node.text
-                const patternForSimpleVarExpansion = /(?<=^(?:\\\\)*|[^\\](?:\\\\)*)\$(?:(\w+)\b|\{(\w+)\})/g
-                // need to make all groups non-capturing for split
-                const patternForSplit =              /(?<=^(?:\\\\)*|[^\\](?:\\\\)*)\$(?:(?:\w+)\b|\{(?:\w+)\})/g
-                const simpleExpansionNames = text.matchAll(patternForSimpleVarExpansion).map(each=>each[1]||each[2])
-                const otherTexts = text.split(patternForSplit).map(each=>escapeJsString(bashUnescape(each)).slice(1, -1))
-                const simpleEnvInterpolates = simpleExpansionNames.map(each=>{
-                    usedVars = true
-                    const out = ()=>`\${env${escapeJsKeyAccess(each)}}`
-                    // for easy joining later
-                    out.toString = out
-                    return out
-                })
-                let output = [...zipLong(otherTexts, simpleEnvInterpolates)].flat(1).slice(0,-1)
-                return output
+                const out = ()=>`\${env${escapeJsKeyAccess(node.text.replace(/^\$\{?|\}?$/g,""))}}`
+                // for easy joining later
+                out.toString = out
+                return [ out ]
+            } else if (node.type == "string_content") {
+                return node.children.map(translateInner).join("")
+            } else if (node.type == "\"") {
+                return ""
             } else if (node.type == "string") {
+                let output = node.children.map(convertArg).join("")
+                // return node.children.map(convertArg).join("")
                 let text = node.text.slice(1, -1)
                 // FIXME: handle sub-shell better
                 if (text.match(/(?<!\\)(\\\\)*\$\(/)) {
@@ -79,7 +108,7 @@ export function translate(code) {
                     out.toString = out
                     return out
                 })
-                let output = [...zipLong(otherTexts, simpleEnvInterpolates)].flat(1).slice(0,-1)
+                output = [...zipLong(otherTexts, simpleEnvInterpolates)].flat(1).slice(0,-1)
                 return output
             } else if (node.type == "concatenation" || node.type == "command_name") {
                 return node.children.map(convertArg)
@@ -147,10 +176,13 @@ export function translate(code) {
             // console.debug(`args is:`,args)
 
             // TODO: handle the case of part of an arg being a function (e.g. splat, range, subshell, etc)
-            debug && console.debug(`args is:`,args)
+            // debug && console.debug(`args is:`,args)
             if (asArray) {
                 return args.map(each=>each.join(""))
             } else if (asSingleString) {
+                if (args.length == 1 && args[0].length == 1 && args[0][0].toString().startsWith("${") && args[0][0].toString().endsWith("}")) {
+                    return args[0][0].toString().slice(2,-1)
+                }
                 return `\`${args.map(each=>each.join("")).join(" ")}\``
             } else if (asArrayString) {
                 return `[${args.map(each=>`\`${each.join("")}\``).join(", ")}]`
@@ -188,31 +220,26 @@ export function translate(code) {
                 usesHasCommand = true
                 return `hasCommand("${cmd}")`
             }
-            console.debug(`expr is:`,expr)
             // Match binary expressions like "$a" = "hi"
             const binaryOpMatch = expr.match(/^(.+?)\s*(!=|-eq|-ne|-gt|-lt|-ge|-le|==|=)\s*(.+)$/)
             if (binaryOpMatch) {
                 const [, leftRaw, op, rightRaw] = binaryOpMatch
-                let left = convertArgs(leftRaw.trim(), {debug:true})
-                let right = convertArgs(rightRaw.trim(),{debug:true})
+                let left = convertArgs(leftRaw.trim(), {debug:false, asSingleString: true })
+                let right = convertArgs(rightRaw.trim(),{debug:false, asSingleString: true})
                 try {
                     if (eval(left)-0 == eval(left)-0) {
                         left = eval(left)-0
                     }
                 } catch (error) {
-                    left = `parseFloat(${left})`
+                    // left = `parseFloat(${left})`
                 }
                 try {
                     if (eval(right)-0 == eval(right)-0) {
                         right = eval(right)-0
                     }
                 } catch (error) {
-                    right = `parseFloat(${right})`
-                    
+                    // right = `parseFloat(${right})`
                 }
-                console.debug(`left is:`,left)
-                console.debug(`op is:`,op)
-                console.debug(`right is:`,right)
 
                 const opMap = {
                     "=": "===",
@@ -258,7 +285,7 @@ export function translate(code) {
 
         const fallbackTranslate = (node)=>"////" + node.text.replace(/\n/g, "\n////")
         if (node.type == "program") {
-            const contents = node.children.map(translateInner).join("")
+            const contents = node.children.map(each=>translateInner(each, {topLevel:true})).join("")
             const imports = [
                 `import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"`,
             ]
@@ -266,7 +293,7 @@ export function translate(code) {
                 `const $$ = (...args)=>$(...args).noThrow()`,
             ]
             if (usedVars) {
-                imports.push(`import { env } from "https://deno.land/x/quickr@0.8.7/main/env.js"`)
+                imports.push(`import { env } from "https://deno.land/x/quickr@0.8.8/main/env.js"`)
             }
             if (usedStdout) {
                 helpers.push(`const $stdout = [ Deno.stdout.readable, {preventClose:true} ]`)
@@ -287,6 +314,8 @@ export function translate(code) {
                 imports.push(`import fs from "node:fs"`)
             }
             return imports.concat(helpers).join("\n")+"\n"+contents
+        } else if (node.type == "$(" || node.type == ")") {
+            return ""
         } else if (node.type == "whitespace") {
             return node.text
         // 
@@ -340,7 +369,7 @@ export function translate(code) {
             if (convertedArgs == null) {
                 return fallbackTranslate(node)
             }
-            return `${node.indent}env${escapeJsKeyAccess(varNameNode.text)} = ${convertedArgs}`
+            return `env${escapeJsKeyAccess(varNameNode.text)} = ${convertedArgs}`
         } else if (node.type == "unset_command") {
             return `delete env${escapeJsKeyAccess(node.text.replace(/^unset\s*/,""))}`
         // 
@@ -361,7 +390,7 @@ export function translate(code) {
                 // set
                 // 
                 return fallbackTranslate(node)
-            } else if (commandNameNode.text == "echo" && !inPipeline) {
+            } else if (commandNameNode.text == "echo" && topLevel) {
                 // slice gets rid of "echo "
                 // TODO: handle echo -n
                 const convertedArgs = convertArgs(node.children, {asArray: true})
@@ -399,9 +428,7 @@ export function translate(code) {
             // </redirected_statement>
             const commandNode = node.children[0]
             // const inner = translateInner(commandNode).slice(8)
-            console.debug(`commandNode.type is:`,commandNode.type)
             const inner = commandNode.type == "command" ? convertArgs(commandNode.children) : translateInner(commandNode).slice(8)
-            console.debug(`inner is:`,inner)
             const redirects = node.quickQuery(`(file_redirect)`)
             const parseOutputRedirect = (redirectNode)=>{
                 const maybeFdNode = redirectNode.quickQueryFirst(`(file_descriptor)`)
@@ -578,9 +605,7 @@ export function translate(code) {
             }
             // little bit hacky, cleanup later
             const lastPart = lastCommandConverted.replace(/^await \$\$\`/,"")
-            console.debug(`otherCommandsConverted is:`,otherCommandsConverted)
             const coreCommand = [ ...otherCommandsConverted.map(each=>each.slice(1,-1)), lastPart ].join(" | ")
-            console.debug(`coreCommand is:`,coreCommand)
             inPipeline = false
             return `await $$\`${coreCommand}`
         // 
@@ -857,10 +882,26 @@ export function translate(code) {
             // let match = whilePart.match(/^while\s+(.+?)\s+in\s+(.+?)\s*;?\s*$/)
             return front + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`))
         // 
+        // compound_statement
+        // 
+        } else if (node.type == "compound_statement") {
+            return node.children.map(translateInner).join("")
+        // 
+        // function
+        // 
+        } else if (node.type == "function_definition") {
+            const prefixNodes = node.children.filter(each=>each.type != "compound_statement")
+            return `// FIXME: bash function: ${prefixNodes.map(each=>each.text).join("")}\nfunction ${prefixNodes.filter(each=>each.type=="word")[0].text}() ${translateInner(node.quickQueryFirst(`(compound_statement)`))}`
+            return node.children.map(translateInner).join("")
+        // 
         // couldn't translate
         // 
         } else {
-            return fallbackTranslate(node)
+            if (topLevel) {
+                return fallbackTranslate(node)
+            } else {
+                return node.text
+            }
         }
     }
     return translateInner(node)

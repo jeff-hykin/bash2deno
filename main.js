@@ -14,34 +14,5 @@ var root = tree.rootNode
 
 await FileSystem.write({path:`${FileSystem.thisFolder}/examples/main.sh.xml`, data: xmlStylePreview(root), overwrite: true})
 
-// 1.0 goal:
-    // sub shells
-    // splats
-    // handle "$@"
-    // case 
-    // DONE: basic redirection
-    // DONE: chained pipeline
-    // DONE: unset
-    // DONE: && ||
-    // DONE if elif else
-         // DONE: string compare
-         // DONE: number compare
-         // DONE: is executable
-         // DONE: is file
-         // DONE: is directory
-    // done: basic for loops
-// 2.0 goal:
-    // alias
-    // set pipefail
-    // bracket sub shell echo hi && { echo bye; } && echo final
-    // env for specific command. E.g. `PATH=/bin echo`
-    // backticks
-    // has-command (which and $(command -v ))
-    // function
-    // heredocs
-// 3.0 goal:
-    // diff <(ls dir1) <(ls dir2)
-    // background tasks (&)
-    // arrays
 
 await FileSystem.write({path:`${FileSystem.thisFolder}/examples/main.sh.js`, data: translate(code), overwrite: true})

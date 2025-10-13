@@ -6,6 +6,7 @@ export name="Alice"
 readonly app_version="1.2.3"
 number=42
 greeting="Hello, $name!"
+file_count=$(ls | wc -l)
 unset number
 
 # ========== SET OPTIONS ==========
@@ -14,7 +15,7 @@ set -euo pipefail  # Exit on error, undefined var is error, and pipe fails propa
 # ========== FUNCTION DEFINITION ==========
 say_hello() {
   local who="${1:-World}"  # Default parameter
-  echo "Hello, $who!"
+  echo "Hello\", $who!"
 }
 
 # ========== ALIASES ==========
@@ -35,6 +36,10 @@ fi
 # FOR LOOP
 for i in {1..3}; do
   echo "Loop #$i"
+done
+# for each argument (in a argument-might-have-spaces friendly way)
+for arg in "$@"; do
+    echo "$arg"
 done
 
 # WHILE LOOP

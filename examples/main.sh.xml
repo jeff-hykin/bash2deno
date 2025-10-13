@@ -62,6 +62,32 @@
         </string>
     </variable_assignment>
     <whitespace text="\n" />
+    <variable_assignment>
+        <variable_name text="file_count" />
+        <"=" text="=" />
+        <command_substitution>
+            <"$(" text="$(" />
+            <pipeline>
+                <command>
+                    <command_name>
+                        <word text="ls" />
+                    </command_name>
+                </command>
+                <whitespace text=" " />
+                <"|" text="|" />
+                <whitespace text=" " />
+                <command>
+                    <command_name>
+                        <word text="wc" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <word text="-l" />
+                </command>
+            </pipeline>
+            <")" text=")" />
+        </command_substitution>
+    </variable_assignment>
+    <whitespace text="\n" />
     <unset_command>
         <unset text="unset" />
         <whitespace text=" " />
@@ -121,7 +147,7 @@
                 <whitespace text=" " />
                 <string>
                     <"\"" text="\"" />
-                    <string_content text="Hello, " />
+                    <string_content text="Hello\\\", " />
                     <simple_expansion>
                         <"$" text="$" />
                         <variable_name text="who" />
@@ -301,6 +327,47 @@
                     <simple_expansion>
                         <"$" text="$" />
                         <variable_name text="i" />
+                    </simple_expansion>
+                    <"\"" text="\"" />
+                </string>
+            </command>
+            <whitespace text="\n" />
+            <done text="done" />
+        </do_group>
+    </for_statement>
+    <whitespace text="\n" />
+    <comment text="# for each argument (in a argument-might-have-spaces friendly way)" />
+    <whitespace text="\n" />
+    <for_statement>
+        <for text="for" />
+        <whitespace text=" " />
+        <variable_name text="arg" />
+        <whitespace text=" " />
+        <in text="in" />
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <simple_expansion>
+                <"$" text="$" />
+                <special_variable_name text="@" />
+            </simple_expansion>
+            <"\"" text="\"" />
+        </string>
+        <";" text=";" />
+        <whitespace text=" " />
+        <do_group>
+            <do text="do" />
+            <whitespace text="\n    " />
+            <command>
+                <command_name>
+                    <word text="echo" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <simple_expansion>
+                        <"$" text="$" />
+                        <variable_name text="arg" />
                     </simple_expansion>
                     <"\"" text="\"" />
                 </string>
