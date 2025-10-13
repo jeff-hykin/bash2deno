@@ -3,6 +3,7 @@ import { env } from "https://deno.land/x/quickr@0.8.6/main/env.js"
 const $$ = (...args)=>$(...args).noThrow()
 const $stderr = [ Deno.stderr.readable, {preventClose:true} ]
 const appendTo = (pathString)=>$.path(pathString).openSync({ write: true, create: true, truncate: false })
+const overwrite = (pathString)=>$.path(pathString).openSync({ write: true, create: true })
 
 // ========== VARIABLE ASSIGNMENT ==========
 env.name = `Alice`
@@ -90,24 +91,19 @@ await $$`ps aux`.stdout(appendTo(`./somefile`)).stderr(appendTo(`./somefile`))
 await $$`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
 await $$`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
 await $$`ps aux`.stdout(...$stderr).stderr(...$stderr)
-await $$`ps aux 2> >(cat)`
+////tar -cf >(ssh remote_server tar xf -) .
+await $$`ls somefile thatdoesnotexist`.stdout("null").stderr(overwrite(`err`))
 
 // ========== PIPES ==========
 await $$`ps aux | grep ${env.USER}`
-////ps aux | grep "$USER" | grep -v "double pipe"
-////ps aux | grep "$USER" | grep -v "double pipe and" > /dev/null
-////# hi
+// alsdkjfasdj
+await $$`ps aux | grep ${env.USER} | grep -v 'double pipe'`;
+// alsdkjfasdj
+await $$`ps aux > /dev/null`;
+// hi
 ////ps aux &>/dev/null | grep "$USER"
 ////ps aux 1>&2 2>/dev/null | grep "$USER"
-await $$`ps aux | grep ${env.USER} | grep '-v' grep`
-////cat <<< 'hello'
-////ls somefile thatdoesnotexist 1>/dev/null 2> >(grep "No such")
-////diff <(ls dir1) <(ls dir2)
-////paste <(ls dir1) <(ls dir2)
-
-// ========== CHAINING ==========
-await $$`mkdir '-p' '/tmp/demo'`
-////mkdir -p /tmp/demo && echo "Created demo dir"
+await $$`ps aux`
 ////mkdir -p /tmp/demo && echo "Created demo dir" || echo "Failed to create dir"
 
 // ========== ESCAPING ==========

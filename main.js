@@ -216,6 +216,8 @@ function translate(node) {
                 return ""
             }
             return "//"+node.text.slice(1)
+        } else if (node.type == ";") {
+            return ";"
         // 
         // var assignment
         // 
@@ -470,6 +472,7 @@ function translate(node) {
             for (const [cmd, each] of zipLong(commands.slice(0,-1), otherCommandsConverted)) {
                 if (each == null) {
                     failed = true
+                    console.debug(`commands is:`,commands.map(xmlStylePreview).join("\n"))
                     console.warn(`failed to convert command:`,cmd.text)
                     break
                 }
@@ -558,7 +561,7 @@ function shellEscapeArg(str) {
     if (str.length == 0) {
         return ``
     }
-    if (str.match(/^\w+$/)) {
+    if (str.match(/^-*\w+$/)) {
         return str
     } else {
         return `'${str.replace(/'/g,`'"'"'`)}'`

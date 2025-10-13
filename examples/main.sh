@@ -87,18 +87,20 @@ ps aux &>>"./somefile"
 ps aux &>>"./somefile$number"
 ps aux &>>"./somefile${number}"
 ps aux 1>&2 2>/dev/null
-ps aux 2> >(cat)
+tar -cf >(ssh remote_server tar xf -) .
+ls somefile thatdoesnotexist 1>/dev/null 2>err
 
 # ========== PIPES ==========
 ps aux | grep "$USER"
-ps aux | grep "$USER" | grep -v "double pipe"
-ps aux | grep "$USER" | grep -v "double pipe and" > /dev/null
+# alsdkjfasdj
+ps aux | grep "$USER" | grep -v "double pipe";
+# alsdkjfasdj
+ps aux | grep "$USER" | grep -v "double pipe and" > /dev/null;
 # hi
 ps aux &>/dev/null | grep "$USER"
 ps aux 1>&2 2>/dev/null | grep "$USER"
 ps aux | grep "$USER" | grep -v grep
 cat <<< 'hello'
-ls somefile thatdoesnotexist 1>/dev/null 2> >(grep "No such")
 diff <(ls dir1) <(ls dir2)
 paste <(ls dir1) <(ls dir2)
 

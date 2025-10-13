@@ -900,28 +900,55 @@
         </file_redirect>
     </redirected_statement>
     <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="tar" />
+        </command_name>
+        <whitespace text=" " />
+        <word text="-cf" />
+        <whitespace text=" " />
+        <process_substitution>
+            <">(" text=">(" />
+            <command>
+                <command_name>
+                    <word text="ssh" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="remote_server" />
+                <whitespace text=" " />
+                <word text="tar" />
+                <whitespace text=" " />
+                <word text="xf" />
+                <whitespace text=" " />
+                <word text="-" />
+            </command>
+            <")" text=")" />
+        </process_substitution>
+        <whitespace text=" " />
+        <word text="." />
+    </command>
+    <whitespace text="\n" />
     <redirected_statement>
         <command>
             <command_name>
-                <word text="ps" />
+                <word text="ls" />
             </command_name>
             <whitespace text=" " />
-            <word text="aux" />
+            <word text="somefile" />
+            <whitespace text=" " />
+            <word text="thatdoesnotexist" />
         </command>
+        <whitespace text=" " />
+        <file_redirect>
+            <file_descriptor text="1" />
+            <">" text=">" />
+            <word text="/dev/null" />
+        </file_redirect>
         <whitespace text=" " />
         <file_redirect>
             <file_descriptor text="2" />
             <">" text=">" />
-            <whitespace text=" " />
-            <process_substitution>
-                <">(" text=">(" />
-                <command>
-                    <command_name>
-                        <word text="cat" />
-                    </command_name>
-                </command>
-                <")" text=")" />
-            </process_substitution>
+            <word text="err" />
         </file_redirect>
     </redirected_statement>
     <whitespace text="\n\n" />
@@ -954,6 +981,8 @@
         </command>
     </pipeline>
     <whitespace text="\n" />
+    <comment text="# alsdkjfasdj" />
+    <whitespace text="\n" />
     <pipeline>
         <command>
             <command_name>
@@ -965,118 +994,138 @@
         <whitespace text=" " />
         <"|" text="|" />
         <whitespace text=" " />
-        <redirected_statement>
-            <pipeline>
-                <command>
-                    <command_name>
-                        <word text="grep" />
-                    </command_name>
-                    <whitespace text=" " />
-                    <string>
-                        <"\"" text="\"" />
-                        <simple_expansion>
-                            <"$" text="$" />
-                            <variable_name text="USER" />
-                        </simple_expansion>
-                        <"\"" text="\"" />
-                    </string>
-                </command>
-                <whitespace text=" " />
-                <"|" text="|" />
-                <whitespace text=" " />
-                <redirected_statement>
-                    <pipeline>
-                        <command>
-                            <command_name>
-                                <word text="grep" />
-                            </command_name>
-                            <whitespace text=" " />
-                            <word text="-v" />
-                            <whitespace text=" " />
-                            <string>
-                                <"\"" text="\"" />
-                                <string_content text="double pipe" />
-                                <"\"" text="\"" />
-                            </string>
-                            <whitespace text="\n" />
-                            <word text="ps" />
-                            <whitespace text=" " />
-                            <word text="aux" />
-                        </command>
-                        <whitespace text=" " />
-                        <"|" text="|" />
-                        <whitespace text=" " />
-                        <command>
-                            <command_name>
-                                <word text="grep" />
-                            </command_name>
-                            <whitespace text=" " />
-                            <string>
-                                <"\"" text="\"" />
-                                <simple_expansion>
-                                    <"$" text="$" />
-                                    <variable_name text="USER" />
-                                </simple_expansion>
-                                <"\"" text="\"" />
-                            </string>
-                        </command>
-                        <whitespace text=" " />
-                        <"|" text="|" />
-                        <whitespace text=" " />
-                        <command>
-                            <command_name>
-                                <word text="grep" />
-                            </command_name>
-                            <whitespace text=" " />
-                            <word text="-v" />
-                            <whitespace text=" " />
-                            <string>
-                                <"\"" text="\"" />
-                                <string_content text="double pipe and" />
-                                <"\"" text="\"" />
-                            </string>
-                        </command>
-                    </pipeline>
-                    <whitespace text=" " />
-                    <file_redirect>
-                        <">" text=">" />
-                        <whitespace text=" " />
-                        <word text="/dev/null" />
-                        <whitespace text="\n" />
-                        <comment text="# hi" />
-                        <whitespace text="\n" />
-                        <word text="ps" />
-                        <whitespace text=" " />
-                        <word text="aux" />
-                    </file_redirect>
-                    <whitespace text=" " />
-                    <file_redirect>
-                        <"&>" text="&>" />
-                        <word text="/dev/null" />
-                    </file_redirect>
-                </redirected_statement>
-                <whitespace text=" " />
-                <"|" text="|" />
-                <whitespace text=" " />
-                <command>
-                    <command_name>
-                        <word text="grep" />
-                    </command_name>
-                    <whitespace text=" " />
-                    <string>
-                        <"\"" text="\"" />
-                        <simple_expansion>
-                            <"$" text="$" />
-                            <variable_name text="USER" />
-                        </simple_expansion>
-                        <"\"" text="\"" />
-                    </string>
-                    <whitespace text="\n" />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="-v" />
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <string_content text="double pipe" />
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </pipeline>
+    <";" text=";" />
+    <whitespace text="\n" />
+    <comment text="# alsdkjfasdj" />
+    <whitespace text="\n" />
+    <redirected_statement>
+        <pipeline>
+            <command>
+                <command_name>
                     <word text="ps" />
-                    <whitespace text=" " />
-                    <word text="aux" />
-                </command>
-            </pipeline>
+                </command_name>
+                <whitespace text=" " />
+                <word text="aux" />
+            </command>
+            <whitespace text=" " />
+            <"|" text="|" />
+            <whitespace text=" " />
+            <command>
+                <command_name>
+                    <word text="grep" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <simple_expansion>
+                        <"$" text="$" />
+                        <variable_name text="USER" />
+                    </simple_expansion>
+                    <"\"" text="\"" />
+                </string>
+            </command>
+            <whitespace text=" " />
+            <"|" text="|" />
+            <whitespace text=" " />
+            <command>
+                <command_name>
+                    <word text="grep" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="-v" />
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <string_content text="double pipe and" />
+                    <"\"" text="\"" />
+                </string>
+            </command>
+        </pipeline>
+        <whitespace text=" " />
+        <file_redirect>
+            <">" text=">" />
+            <whitespace text=" " />
+            <word text="/dev/null" />
+        </file_redirect>
+    </redirected_statement>
+    <";" text=";" />
+    <whitespace text="\n" />
+    <comment text="# hi" />
+    <whitespace text="\n" />
+    <pipeline>
+        <redirected_statement>
+            <command>
+                <command_name>
+                    <word text="ps" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="aux" />
+            </command>
+            <whitespace text=" " />
+            <file_redirect>
+                <"&>" text="&>" />
+                <word text="/dev/null" />
+            </file_redirect>
+        </redirected_statement>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </pipeline>
+    <whitespace text="\n" />
+    <pipeline>
+        <redirected_statement>
+            <command>
+                <command_name>
+                    <word text="ps" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="aux" />
+            </command>
             <whitespace text=" " />
             <file_redirect>
                 <file_descriptor text="1" />
@@ -1120,69 +1169,8 @@
         <whitespace text=" " />
         <"|" text="|" />
         <whitespace text=" " />
-        <command>
-            <command_name>
-                <word text="grep" />
-            </command_name>
-            <whitespace text=" " />
-            <string>
-                <"\"" text="\"" />
-                <simple_expansion>
-                    <"$" text="$" />
-                    <variable_name text="USER" />
-                </simple_expansion>
-                <"\"" text="\"" />
-            </string>
-        </command>
-        <whitespace text=" " />
-        <"|" text="|" />
-        <whitespace text=" " />
-        <command>
-            <command_name>
-                <word text="grep" />
-            </command_name>
-            <whitespace text=" " />
-            <word text="-v" />
-            <whitespace text=" " />
-            <word text="grep" />
-        </command>
-    </pipeline>
-    <whitespace text="\n" />
-    <command>
-        <command_name>
-            <word text="cat" />
-        </command_name>
-        <whitespace text=" " />
-        <herestring_redirect>
-            <"<<<" text="<<<" />
-            <whitespace text=" " />
-            <raw_string text="'hello'" />
-        </herestring_redirect>
-    </command>
-    <whitespace text="\n" />
-    <redirected_statement>
-        <command>
-            <command_name>
-                <word text="ls" />
-            </command_name>
-            <whitespace text=" " />
-            <word text="somefile" />
-            <whitespace text=" " />
-            <word text="thatdoesnotexist" />
-        </command>
-        <whitespace text=" " />
-        <file_redirect>
-            <file_descriptor text="1" />
-            <">" text=">" />
-            <word text="/dev/null" />
-        </file_redirect>
-        <whitespace text=" " />
-        <file_redirect>
-            <file_descriptor text="2" />
-            <">" text=">" />
-            <whitespace text=" " />
-            <process_substitution>
-                <">(" text=">(" />
+        <list>
+            <pipeline>
                 <command>
                     <command_name>
                         <word text="grep" />
@@ -1190,112 +1178,116 @@
                     <whitespace text=" " />
                     <string>
                         <"\"" text="\"" />
-                        <string_content text="No such" />
+                        <simple_expansion>
+                            <"$" text="$" />
+                            <variable_name text="USER" />
+                        </simple_expansion>
                         <"\"" text="\"" />
                     </string>
                 </command>
-                <")" text=")" />
-            </process_substitution>
-        </file_redirect>
-    </redirected_statement>
-    <whitespace text="\n" />
-    <command>
-        <command_name>
-            <word text="diff" />
-        </command_name>
-        <whitespace text=" " />
-        <process_substitution>
-            <"<(" text="<(" />
-            <command>
-                <command_name>
-                    <word text="ls" />
-                </command_name>
                 <whitespace text=" " />
-                <word text="dir1" />
-            </command>
-            <")" text=")" />
-        </process_substitution>
-        <whitespace text=" " />
-        <process_substitution>
-            <"<(" text="<(" />
-            <command>
-                <command_name>
-                    <word text="ls" />
-                </command_name>
+                <"|" text="|" />
                 <whitespace text=" " />
-                <word text="dir2" />
-            </command>
-            <")" text=")" />
-        </process_substitution>
-    </command>
-    <whitespace text="\n" />
-    <command>
-        <command_name>
-            <word text="paste" />
-        </command_name>
-        <whitespace text=" " />
-        <process_substitution>
-            <"<(" text="<(" />
-            <command>
-                <command_name>
-                    <word text="ls" />
-                </command_name>
-                <whitespace text=" " />
-                <word text="dir1" />
-            </command>
-            <")" text=")" />
-        </process_substitution>
-        <whitespace text=" " />
-        <process_substitution>
-            <"<(" text="<(" />
-            <command>
-                <command_name>
-                    <word text="ls" />
-                </command_name>
-                <whitespace text=" " />
-                <word text="dir2" />
-            </command>
-            <")" text=")" />
-        </process_substitution>
-    </command>
-    <whitespace text="\n\n" />
-    <comment text="# ========== CHAINING ==========" />
-    <whitespace text="\n" />
-    <command>
-        <command_name>
-            <word text="mkdir" />
-        </command_name>
-        <whitespace text=" " />
-        <word text="-p" />
-        <whitespace text=" " />
-        <word text="/tmp/demo" />
-    </command>
-    <whitespace text="\n" />
-    <list>
-        <command>
-            <command_name>
-                <word text="mkdir" />
-            </command_name>
+                <command>
+                    <command_name>
+                        <word text="grep" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <word text="-v" />
+                    <whitespace text=" " />
+                    <word text="grep" />
+                    <whitespace text="\n" />
+                    <word text="cat" />
+                    <whitespace text=" " />
+                    <herestring_redirect>
+                        <"<<<" text="<<<" />
+                        <whitespace text=" " />
+                        <raw_string text="'hello'" />
+                    </herestring_redirect>
+                    <whitespace text="\n" />
+                    <word text="diff" />
+                    <whitespace text=" " />
+                    <process_substitution>
+                        <"<(" text="<(" />
+                        <command>
+                            <command_name>
+                                <word text="ls" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <word text="dir1" />
+                        </command>
+                        <")" text=")" />
+                    </process_substitution>
+                    <whitespace text=" " />
+                    <process_substitution>
+                        <"<(" text="<(" />
+                        <command>
+                            <command_name>
+                                <word text="ls" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <word text="dir2" />
+                        </command>
+                        <")" text=")" />
+                    </process_substitution>
+                    <whitespace text="\n" />
+                    <word text="paste" />
+                    <whitespace text=" " />
+                    <process_substitution>
+                        <"<(" text="<(" />
+                        <command>
+                            <command_name>
+                                <word text="ls" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <word text="dir1" />
+                        </command>
+                        <")" text=")" />
+                    </process_substitution>
+                    <whitespace text=" " />
+                    <process_substitution>
+                        <"<(" text="<(" />
+                        <command>
+                            <command_name>
+                                <word text="ls" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <word text="dir2" />
+                        </command>
+                        <")" text=")" />
+                    </process_substitution>
+                    <whitespace text="\n\n" />
+                    <comment text="# ========== CHAINING ==========" />
+                    <whitespace text="\n" />
+                    <word text="mkdir" />
+                    <whitespace text=" " />
+                    <word text="-p" />
+                    <whitespace text=" " />
+                    <word text="/tmp/demo" />
+                    <whitespace text="\n" />
+                    <word text="mkdir" />
+                    <whitespace text=" " />
+                    <word text="-p" />
+                    <whitespace text=" " />
+                    <word text="/tmp/demo" />
+                </command>
+            </pipeline>
             <whitespace text=" " />
-            <word text="-p" />
+            <"&&" text="&&" />
             <whitespace text=" " />
-            <word text="/tmp/demo" />
-        </command>
-        <whitespace text=" " />
-        <"&&" text="&&" />
-        <whitespace text=" " />
-        <command>
-            <command_name>
-                <word text="echo" />
-            </command_name>
-            <whitespace text=" " />
-            <string>
-                <"\"" text="\"" />
-                <string_content text="Created demo dir" />
-                <"\"" text="\"" />
-            </string>
-        </command>
-    </list>
+            <command>
+                <command_name>
+                    <word text="echo" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <string_content text="Created demo dir" />
+                    <"\"" text="\"" />
+                </string>
+            </command>
+        </list>
+    </pipeline>
     <whitespace text="\n" />
     <list>
         <list>
