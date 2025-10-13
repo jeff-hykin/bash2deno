@@ -29,9 +29,9 @@ delete env.number
 // ========== CONTROL FLOW ==========
 
 // IF-ELSE
-if ( `${env.name}` === `Alice`) { 
+if ( parseFloat(`${env.name}`) === `Alice`) { 
   console.log(`Hi Alice!`)
-} else if ( `${env.name}` === `Bob`) { 
+} else if ( parseFloat(`${env.name}`) === `Bob`) { 
   console.log(`Hi Bob!`)
 
 } else {
@@ -41,16 +41,20 @@ if ( `${env.name}` === `Alice`) {
 }
 
 // FOR LOOP
-////for i in {1..3}; do
-////  echo "Loop #$i"
-////done
+////for i in {1..3}; {
+
+  console.log(`Loop #${env.i}`)
+
+}
 
 // WHILE LOOP
 env.counter = `0`
-////while [[ $counter -lt 3 ]]; do
-////  echo "Counter: $counter"
-////  ((counter++))
-////done
+while (parseFloat(`${env.counter}`) < 3) {
+
+  console.log(`Counter: ${env.counter}`)
+  ////((counter++))) {
+
+}
 
 // ========== PARAMETER EXPANSION ==========
 
@@ -73,7 +77,7 @@ console.log(`double quote connection`)
 console.log(`double quote with escapes "`)
 console.log(`double ${env.dollar}`)
 ////echo "double subshell $(echo hi)"
-console.log(`dollaconnection`)
+console.log(`${env.dollar}connection`)
 ////echo `backticks`
 console.log(`Greeting: ${env.greeting}`)
 console.log(`Greeting upper: \${greeting^^}`)      // Uppercase

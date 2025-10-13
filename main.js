@@ -14,19 +14,21 @@ var root = tree.rootNode
 await FileSystem.write({path:`${FileSystem.thisFolder}/examples/main.sh.xml`, data: xmlStylePreview(root), overwrite: true})
 
 // 1.0 goal:
-    // basic redirection
-    // chained pipeline
-    // unset
-    // && ||
-    // if elif else
-        // string compare
-        // number compare
-        // is executable
-        // is file
-        // is directory
+    // DONE: basic redirection
+    // DONE: chained pipeline
+    // DONE: unset
+    // DONE: && ||
+    // handle "$@"
+    // DONE if elif else
+         // DONE: string compare
+         // DONE: number compare
+         // DONE: is executable
+         // DONE: is file
+         // DONE: is directory
     // basic for loops
     // sub shells
     // splats
+    // case 
 // 2.0 goal:
     // env for specific command. E.g. `PATH=/bin echo`
     // backticks
@@ -48,6 +50,9 @@ function translate(node) {
     let usedAliases = false
     let usedOverwrite = false
     let usedAppend = false
+    let usesHasCommand = false
+    let usesFs = false
+
     function translateInner(node) {
         function convertArg(node) {
             // possible:
@@ -73,7 +78,23 @@ function translate(node) {
                 return escapeJsString(text).slice(1, -1)
             } else if (node.type == "raw_string") {
                 return escapeJsString(node.text.slice(1, -1)).slice(1, -1)
-            } else if (node.type == "string" || node.type == "simple_expansion") {
+            } else if (node.type == "simple_expansion") {
+                let text = node.text
+                const patternForSimpleVarExpansion = /(?<=^(?:\\\\)*|[^\\](?:\\\\)*)\$(?:(\w+)\b|\{(\w+)\})/g
+                // need to make all groups non-capturing for split
+                const patternForSplit =              /(?<=^(?:\\\\)*|[^\\](?:\\\\)*)\$(?:(?:\w+)\b|\{(?:\w+)\})/g
+                const simpleExpansionNames = text.matchAll(patternForSimpleVarExpansion).map(each=>each[1]||each[2])
+                const otherTexts = text.split(patternForSplit).map(each=>escapeJsString(bashUnescape(each)).slice(1, -1))
+                const simpleEnvInterpolates = simpleExpansionNames.map(each=>{
+                    usedVars = true
+                    const out = ()=>`\${env${escapeJsKeyAccess(each)}}`
+                    // for easy joining later
+                    out.toString = out
+                    return out
+                })
+                let output = [...zipLong(otherTexts, simpleEnvInterpolates)].flat(1).slice(0,-1)
+                return output
+            } else if (node.type == "string") {
                 let text = node.text.slice(1, -1)
                 // FIXME: handle sub-shell better
                 if (text.match(/(?<!\\)(\\\\)*\$\(/)) {
@@ -111,12 +132,17 @@ function translate(node) {
             }
         }
 
-        function convertArgs(nodes, {asArrayString=false, asArray=false, asSingleString=false} = {}) {
+        function convertArgs(nodes, {asArrayString=false, asArray=false, asSingleString=false, debug=false} = {}) {
             if (typeof nodes == "string") {
-                console.debug(`nodes1 is:`,nodes)
-                nodes = parser.parse(": "+nodes).rootNode.children[0].children.slice(2,)
-                console.debug(`nodes2 is:`,nodes)
+                const root = parser.parse(": "+nodes).rootNode
+                nodes = root.quickQueryFirst(`(command)`).children.slice(2)
+
+                // console.debug(`xmlStylePreview(root) is:`,xmlStylePreview(root))
+                // console.debug(`args is:`,args)
+                // .children[0].children.slice(2,)
+                // console.debug(`nodes is:`,nodes)
             }
+            debug && console.debug(`nodes is:`,nodes)
             let currentArg = []
             let createNewArg = true // this is to handle annoying edge cases by lazily creating new args
             const args = []
@@ -161,6 +187,7 @@ function translate(node) {
             // console.debug(`args is:`,args)
 
             // TODO: handle the case of part of an arg being a function (e.g. splat, range, subshell, etc)
+            debug && console.debug(`args is:`,args)
             if (asArray) {
                 return args.map(each=>each.join(""))
             } else if (asSingleString) {
@@ -201,13 +228,28 @@ function translate(node) {
                 usesHasCommand = true
                 return `hasCommand("${cmd}")`
             }
-
+            console.debug(`expr is:`,expr)
             // Match binary expressions like "$a" = "hi"
             const binaryOpMatch = expr.match(/^(.+?)\s*(!=|-eq|-ne|-gt|-lt|-ge|-le|==|=)\s*(.+)$/)
             if (binaryOpMatch) {
                 const [, leftRaw, op, rightRaw] = binaryOpMatch
-                const left = convertArgs(leftRaw.trim())
-                const right = convertArgs(rightRaw.trim())
+                let left = convertArgs(leftRaw.trim(), {debug:true})
+                let right = convertArgs(rightRaw.trim(),{debug:true})
+                try {
+                    if (eval(left)-0 == eval(left)-0) {
+                        left = eval(left)-0
+                    }
+                } catch (error) {
+                    left = `parseFloat(${left})`
+                }
+                try {
+                    if (eval(right)-0 == eval(right)-0) {
+                        right = eval(right)-0
+                    }
+                } catch (error) {
+                    right = `parseFloat(${right})`
+                    
+                }
                 console.debug(`left is:`,left)
                 console.debug(`op is:`,op)
                 console.debug(`right is:`,right)
@@ -251,7 +293,7 @@ function translate(node) {
             }
 
             // Fallback for unrecognized formats
-            throw new Error(`Unsupported expression: ${expr}`)
+            return fallbackTranslate({text:expr})
         }
 
         const fallbackTranslate = (node)=>"////" + node.text.replace(/\n/g, "\n////")
@@ -277,6 +319,12 @@ function translate(node) {
             }
             if (usedOverwrite) {
                 helpers.push(`const overwrite = (pathString)=>$.path(pathString).openSync({ write: true, create: true })`)
+            }
+            if (usesHasCommand) {
+                helpers.push(`const hasCommand = (cmd)=>$.commandExistsSync(cmd)`)
+            }
+            if (usesFs) {
+                imports.push(`import fs from "node:fs"`)
             }
             return imports.concat(helpers).join("\n")+contents
         } else if (node.type == "whitespace") {
@@ -431,7 +479,6 @@ function translate(node) {
                     // output.target = null
                     output.target = `"null"`
                 } else if (rawTarget.startsWith("&")) {
-                    console.debug(`rawTarget is:`,rawTarget)
                     if (rawTarget == "&1") {
                         usedStdout = true
                         output.target = `...$stdout`
@@ -488,7 +535,6 @@ function translate(node) {
                 // manually handle combined redirect
                 if (redirects[0].text[0] == "&") {
                     const redirect = parseOutputRedirect(redirects[0])
-                    console.debug(`redirect is:`,redirect)
                     if (!redirect) {
                         return fallbackTranslate(node)
                     }
@@ -784,12 +830,55 @@ function translate(node) {
             //     </else_clause>
             //     <fi text="fi" />
             // </if_statement>
-        // TODO:
-            // if, elif, else
-            // for, while
-            // function
-            // redirection
-            // pipe
+        // 
+        // for
+        // 
+        } else if (node.type == "done") {
+            return `\n${node.indent}}`
+        } else if (node.type == "do_group") {
+            return node.children.map(translateInner).join("")
+        } else if (node.type == "for_statement") {
+            let nodes = []
+            let foundGroup = false
+            for (const each of node.children) {
+                if (each.type == "do_group") {
+                    break
+                }
+                nodes.push(each)
+            }
+            const forPart = nodes.map(each=>each.text).join("")
+            let front = fallbackTranslate({text:forPart})
+            let match = forPart.match(/^for\s+(.+?)\s+in\s+(.+?)\s*;?\s*$/)
+            if (match) {
+                const [, varName, inExpr] = match
+                if (inExpr.match(/^{(\d+)\.\.(\d+)}$/)) {
+                    const [ , start, end ] = inExpr.match(/^{(\d+)\.\.(\d+)}$/)
+                    front = `for (env.${escapeJsKeyAccess(varName)} = ${start}; env.${escapeJsKeyAccess(varName)} <= ${end}; env.${escapeJsKeyAccess(varName)}++) {`
+                }
+            }
+            return fallbackTranslate({text: forPart}) + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`))
+        // 
+        // while
+        // 
+        } else if (node.type == "do") {
+            return ""
+        } else if (node.type == "while_statement") {
+            let nodes = []
+            let foundGroup = false
+            let front = ""
+            for (const each of node.children) {
+                if (each.type == "do_group") {
+                    break
+                }
+                if (each.type == "test_command") {
+                    front = `while (${convertBashTestToJS(each.text)}) `
+                }
+                nodes.push(each)
+            }
+            const whilePart = nodes.map(each=>each.text).join("")
+            front = front || fallbackTranslate({text:whilePart})
+            // let match = whilePart.match(/^while\s+(.+?)\s+in\s+(.+?)\s*;?\s*$/)
+            return front + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`))
         // 
         // couldn't translate
         // 
