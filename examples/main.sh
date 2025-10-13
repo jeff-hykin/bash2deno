@@ -67,7 +67,7 @@ echo "double quote with escapes \""
 echo "double $dollar"
 echo "double subshell $(echo hi)"
 echo $dollar'connection'
-echo `back ticks`
+echo `backticks`
 echo "Greeting: ${greeting}"
 echo "Greeting upper: ${greeting^^}"      # Uppercase
 echo "Greeting length: ${#greeting}"      # Length
@@ -76,21 +76,39 @@ filename="archive.tar.gz"
 echo "Base name: ${filename%%.*}"         # Remove longest match from end
 echo "Extension: ${filename##*.}"         # Remove longest match from start
 
-# ========== COMMANDS & PIPING ==========
+# ========== COMMANDS & PIPELINES ==========
 
 echo "User processes:"
-ps aux | grep "$USER" | grep -v grep
+ps aux
+ps aux > /dev/null
+ps aux &>/dev/null
+ps aux &>>/dev/null
+ps aux &>>"./somefile"
+ps aux &>>"./somefile$number"
+ps aux &>>"./somefile${number}"
+ps aux 1>&2 2>/dev/null
+# ps aux 2> >(cat)
+# ps aux | grep "$USER"
+# ps aux &>/dev/null | grep "$USER"
+# ps aux 1>&2 2>/dev/null | grep "$USER"
+# ps aux | grep "$USER" | grep -v grep
+# cat <<< 'hello'
+# ls somefile thatdoesnotexist 1>/dev/null 2> >(grep "No such")
+# diff <(ls dir1) <(ls dir2)
+# paste <(ls dir1) <(ls dir2)
 
-# ========== CHAINING ==========
-mkdir -p /tmp/demo && echo "Created demo dir" || echo "Failed to create dir"
+# # ========== CHAINING ==========
+# mkdir -p /tmp/demo
+# mkdir -p /tmp/demo && echo "Created demo dir"
+# mkdir -p /tmp/demo && echo "Created demo dir" || echo "Failed to create dir"
 
-# ========== ESCAPING ==========
+# # ========== ESCAPING ==========
 
-echo "This is a quote: \" and this is a backslash: \\"
+# echo "This is a quote: \" and this is a backslash: \\"
 
-# ========== CALL FUNCTION ==========
-say_hello "$name"
-greet "Bob"
+# # ========== CALL FUNCTION ==========
+# say_hello "$name"
+# greet "Bob"
 
-# ========== END ==========
-echo "Script completed successfully!"
+# # ========== END ==========
+# echo "Script completed successfully!"

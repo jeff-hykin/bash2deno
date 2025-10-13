@@ -13,22 +13,57 @@ var root = tree.rootNode
 
 await FileSystem.write({path:`${FileSystem.thisFolder}/examples/main.sh.xml`, data: xmlStylePreview(root), overwrite: true})
 
+// 1.0 goal:
+    // basic redirection
+    // chained pipeline
+    // unset
+    // && ||
+    // if elif else
+        // string compare
+        // number compare
+        // is executable
+        // is file
+        // is directory
+    // basic for loops
+    // sub shells
+    // splats
+// 2.0 goal:
+    // env for specific command. E.g. `PATH=/bin echo`
+    // backticks
+    // alias
+    // has-command (which and $(command -v ))
+    // function
+    // set pipefail
+    // heredocs
+    // diff <(ls dir1) <(ls dir2)
+// 3.0 goal:
+    // background tasks (&)
+    // arrays
 
 function translate(node) {
     let usedVars = false
+    let usedStdout = false
+    let usedStderr = false
     let usedAliases = false
+    let usedOverwrite = false
+    let usedAppend = false
     function translateInner(node) {
         function convertArg(node) {
             // possible:
                 // <raw_string>
                 // <word>
+                // <number>
                 // <text> // for newline escapes
+                // <command_substitution>
+                // <simple_expansion>
+                // <command_name>
                 // <string>
+                // <brace_expression>
+                // <expansion>
+                // <command_substitution>
                 // <concatenation>
-                    // <word>
-                    // <brace_expression>
                 // <ansi_c_string> AKA $''
-            if (node.type == "word") {
+            if (node.type == "word"||node.type == "number") {
                 let text = node.text
                 text = text.replace(/\\([a]|[^a])/g, "$1")
                 // TODO: glob expansion
@@ -36,8 +71,8 @@ function translate(node) {
                 // FIXME: probably some other special stuff like !
                 return escapeJsString(text).slice(1, -1)
             } else if (node.type == "raw_string") {
-                return node.text.slice(1, -1)
-            } else if (node.type == "string") {
+                return escapeJsString(node.text.slice(1, -1)).slice(1, -1)
+            } else if (node.type == "string" || node.type == "simple_expansion") {
                 let text = node.text.slice(1, -1)
                 // FIXME: handle sub-shell better
                 if (text.match(/(?<!\\)(\\\\)*\$\(/)) {
@@ -57,9 +92,8 @@ function translate(node) {
                     return out
                 })
                 let output = [...zipLong(otherTexts, simpleEnvInterpolates)].flat(1).slice(0,-1)
-                console.debug(`<string> output is:`,output)
                 return output
-            } else if (node.type == "concatenation") {
+            } else if (node.type == "concatenation" || node.type == "command_name") {
                 return node.children.map(convertArg)
             } else if (node.type == "brace_expression") {
                 // FIXME
@@ -70,6 +104,9 @@ function translate(node) {
                 text = escapeJsString(text).slice(1, -1)
                 // FIXME: this is not how ansi_c_string's work
                 return text
+            } else {
+                console.warn(`unhandled node type:`,node.type)
+                return null
             }
         }
 
@@ -78,7 +115,7 @@ function translate(node) {
             let createNewArg = true // this is to handle annoying edge cases by lazily creating new args
             const args = []
             let escapedNewline = false
-            console.debug(`nodes.map(each=>each.text) is:`,nodes.map(each=>each.text))
+            // console.debug(`nodes.map(each=>each.text) is:`,nodes.map(each=>each.text))
             for (const eachNode of nodes) {
                 // 
                 // find argument splitter
@@ -106,11 +143,17 @@ function translate(node) {
                 const converted = convertArg(eachNode)
                 // fail
                 if (converted == null) {
+                    console.warn(`failed to convert arg:`,eachNode.text)
                     return null
                 }
                 currentArg.push(...[converted].flat(Infinity))
             }
             
+            // args should be an array of array of (strings or functions)
+                // each function returns a string
+                // each string is js backticks escaped
+            // console.debug(`args is:`,args)
+
             // TODO: handle the case of part of an arg being a function (e.g. splat, range, subshell, etc)
             if (asArray) {
                 return args.map(each=>each.join(""))
@@ -149,6 +192,18 @@ function translate(node) {
             ]
             if (usedVars) {
                 imports.push(`import { env } from "https://deno.land/x/quickr@0.8.6/main/env.js"`)
+            }
+            if (usedStdout) {
+                helpers.push(`const $stdout = [ Deno.stdout.readable, {preventClose:true} ]`)
+            }
+            if (usedStderr) {
+                helpers.push(`const $stderr = [ Deno.stderr.readable, {preventClose:true} ]`)
+            }
+            if (usedAppend) {
+                helpers.push(`const appendTo = (pathString)=>$.path(pathString).openSync({ write: true, create: true, truncate: false })`)
+            }
+            if (usedOverwrite) {
+                helpers.push(`const overwrite = (pathString)=>$.path(pathString).openSync({ write: true, create: true })`)
             }
             return imports.concat(helpers).join("\n")+contents
         } else if (node.type == "whitespace") {
@@ -216,24 +271,194 @@ function translate(node) {
                 // 
                 // TODO: handle alias by shimming $ to check/substitute aliases before calling dax
                 return fallbackTranslate(node)
-            } else {
-                const nodesAfterCommandName = []
-                let foundCommandName = false
-                for (const each of node.children) {
-                    if (each.type == "command_name") {
-                        foundCommandName = true
-                        continue
-                    }
-                    if (foundCommandName) {
-                        nodesAfterCommandName.push(each)
-                    }
+            } else if (commandNameNode.text == "set") {
+                // 
+                // set
+                // 
+                return fallbackTranslate(node)
+            } else if (commandNameNode.text == "echo") {
+                // slice gets rid of "echo "
+                // TODO: handle echo -n
+                const convertedArgs = convertArgs(node.children, {asArray: true})
+                if (convertedArgs == null) {
+                    return fallbackTranslate(node)
                 }
-                const convertedArgs = convertArgs([ commandNameNode, ...nodesAfterCommandName ])
+                const args = convertedArgs.slice(1)
+                // NOTE: args are already escaped for specifically JS backticks
+                return `console.log(\`${args.join(" ")}\`)`
+            } else {
+                const convertedArgs = convertArgs(node.children)
                 if (convertedArgs == null) {
                     return fallbackTranslate(node)
                 }
                 return  "await $$"+convertedArgs
             }
+        } else if (node.type == "redirected_statement") {
+            // <redirected_statement>
+            //     <command>
+            //         <command_name>
+            //             <word text="ps" />
+            //         </command_name>
+            //         <whitespace text=" " />
+            //         <word text="aux" />
+            //     </command>
+            //     <whitespace text=" " />
+            //     <file_redirect>
+            //         <file_descriptor text="2" />
+            //         <">" text=">" />
+            //         <word text="/dev/null" />
+            //     </file_redirect>
+            // </redirected_statement>
+            const commandNode = node.quickQueryFirst(`(command)`)
+            const redirects = node.quickQuery(`(file_redirect)`)
+            const parseOutputRedirect = (redirectNode)=>{
+                const maybeFdNode = redirectNode.quickQueryFirst(`(file_descriptor)`)
+                const output = {
+                    source: null,
+                    method: "overwrite",
+                    target: null,
+                }
+                const maybeProcessSubstitutionNode = redirectNode.quickQueryFirst(`(process_substitution)`)
+                if (maybeProcessSubstitutionNode) {
+                    // TODO: handle process substitution
+                    console.warn(`unsupported redirect:`,redirectNode.text)
+                    return null
+                }
+                
+                // handle edgecase (kind of a problem with the tree-sitter parser)
+                const text = redirectNode.text.trim()
+                if (!maybeFdNode) {
+                    if (!text.match(/^&/)) {
+                        console.warn(`unsupported redirect:`,redirectNode.text)
+                        return null
+                    }
+                    output.source = "&"
+                    if (text.match(/^&\s*>>/)) {
+                        output.method = "append"
+                    }
+                } else {
+                    let sourceNode = redirectNode.quickQueryFirst(`(file_descriptor)`)
+                    if (!sourceNode) {
+                        output.source = "1"
+                    } else {
+                        output.source = sourceNode.text
+                    }
+                }
+                
+                const rawTarget = text.replace(/^(&|1|2)?\s*>>?\s*/, "")
+                if (rawTarget == "/dev/null") {
+                    // already done: (default value)
+                    // output.target = null
+                    output.target = `"null"`
+                } else if (rawTarget.startsWith("&")) {
+                    console.debug(`rawTarget is:`,rawTarget)
+                    if (rawTarget == "&1") {
+                        usedStdout = true
+                        output.target = `...$stdout`
+                    } else if (rawTarget == "&2") {
+                        usedStderr = true
+                        output.target = `...$stderr`
+                    } else {
+                        console.warn(`unsupported redirect target:`,redirectNode.text)
+                        return null
+                    }
+                // file target
+                } else {
+                    const asJsString = convertArgs(redirectNode.children.filter(each=>![">",">>", "&>", "&>>",">&",">>&","process_substitution","file_descriptor"].includes(each.type)), {asSingleString: true})
+                    let extraOption = ""
+                    if (output.method == "append") {
+                        usedAppend = true
+                        output.target = `appendTo(${asJsString})`
+                    } else {
+                        usedOverwrite = true
+                        output.target = `overwrite(${asJsString})`
+                    }
+                }
+
+                return output
+            }
+            const convertRedirectTargetToJsString = (target)=>{
+                const isFdTarget = target.startsWith("&")
+                let extraOption = ""
+                // FIXME
+                if (false) {
+                    extraOption = ", truncate: false"
+                }
+                target = `$.path(${escapeJsString(target)}).openSync({ write: true, create: true${extraOption} })`
+                if (isFdTarget) {
+                    text = text.slice(1)
+                    if (text == "1") {
+                        usedStdout = true
+                        target = `...$stdout`
+                    } else if (text == "2") {
+                        usedStderr = true
+                        target = `...$stderr`
+                    } else {
+                        console.warn(`unsupported redirect target:`,redirects[0].text)
+                        return null
+                    }
+                }
+                return target
+            }
+            if (redirects.length == 1) {
+                const convertedArgs = convertArgs(commandNode.children)
+                console.debug(`convertedArgs is:`,convertedArgs.slice(0,-1))
+                if (convertedArgs == null) {
+                    return fallbackTranslate(node)
+                }
+                // manually handle combined redirect
+                if (redirects[0].text[0] == "&") {
+                    const redirect = parseOutputRedirect(redirects[0])
+                    console.debug(`redirect is:`,redirect)
+                    if (!redirect) {
+                        return fallbackTranslate(node)
+                    }
+                    return `await $$${convertedArgs}.stdout(${redirect.target}).stderr(${redirect.target})`
+                }
+                return `await $$${convertedArgs.slice(0,-1)} ${redirects[0].text}\``
+            } else {
+                let stdoutTarget
+                let stderrTarget
+                for (const each of redirects) {
+                    let redirect = parseOutputRedirect(each)
+                    console.debug(`redirect is:`,redirect)
+                    if (redirect.source == "1" || redirect.source == "&") {
+                        stdoutTarget = redirect.target
+                    }
+                    if (redirect.source == "2" || redirect.source == "&") {
+                        stderrTarget = redirect.target
+                    }
+                }
+                console.debug(`stdoutTarget  is:`,stdoutTarget   )
+                console.debug(`stderrTarget is:`,stderrTarget)
+                // bash is weird. This is for: ps aux > /dev/null 2>&1
+                // both stdout and stderr are redirected to /dev/null
+                // but here they're swapped: ps aux 1>&2 2>&1
+                if (stdoutTarget == "...$stderr" && stderrTarget == "...$stdout") {
+                    // swap case (do nothing)
+                } else {
+                    if (stdoutTarget && stderrTarget === "...$stdout") {
+                        stderrTarget = stdoutTarget
+                    }
+                    if (stderrTarget && stdoutTarget === "...$stderr") {
+                        stderrTarget = stdoutTarget
+                    }
+                }
+                let stdoutString = ""
+                let stderrString = ""
+                if (stdoutTarget) {
+                    stdoutString = `.stdout(${stdoutTarget})`
+                }
+                if (stderrTarget) {
+                    stderrString = `.stderr(${stderrTarget})`
+                }
+                return `await $$${convertArgs(commandNode.children).slice(0,-1)}\`${stdoutString}${stderrString}`
+            }
+        } else if (node.type == "pipeline") {
+            const commands = []
+            return fallbackTranslate(node)
+            // node.quickQueryFirst(`(command) @firstCommand`).firstCommand
+            // return translateInner(node.children[0])
         // TODO:
             // if, elif, else
             // for, while

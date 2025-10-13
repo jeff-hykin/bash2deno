@@ -1,12 +1,14 @@
 import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"
 import { env } from "https://deno.land/x/quickr@0.8.6/main/env.js"
 const $$ = (...args)=>$(...args).noThrow()
+const $stderr = [ Deno.stderr.readable, {preventClose:true} ]
+const appendTo = (pathString)=>$.path(pathString).openSync({ write: true, create: true, truncate: false })
 
 // ========== VARIABLE ASSIGNMENT ==========
 env.name = `Alice`
 env.name = `Alice`
 env.app_version = `1.2.3`
-////number=42
+env.number = `42`
 env.greeting = `Hello, ${env.name}!`
 ////unset number
 
@@ -40,7 +42,7 @@ env.greeting = `Hello, ${env.name}!`
 ////done
 
 // WHILE LOOP
-////counter=0
+env.counter = `0`
 ////while [[ $counter -lt 3 ]]; do
 ////  echo "Counter: $counter"
 ////  ((counter++))
@@ -48,51 +50,68 @@ env.greeting = `Hello, ${env.name}!`
 
 // ========== PARAMETER EXPANSION ==========
 
-////echo unquoted
-////echo unquoted two
-////echo unquoted\ with\ spaces
-////echo newline\
-////    continued // trailing comment
-////echo splat*
-////echo doubleSplat**
-////echo range{1..3}
-////echo range{1..10..2}
-////echo 'single quote'
-////echo 'single quote\
-////    '
-////echo 'single quote'"'"'hi'
-////echo $'single dollar'
-////echo quote'connection'
-////echo "double quote"
-////echo double" quote connection"
-////echo "double quote with escapes \""
-////echo "double $dollar"
+console.log(`unquoted`)
+console.log(`unquoted two`)
+console.log(`unquoted with spaces`)
+console.log(`newline continued`) // trailing comment
+console.log(`splat*`)
+console.log(`doubleSplat**`)
+console.log(`range{1..3}`)
+console.log(`range{1..10..2}`)
+console.log(`single quote`)
+console.log(`single quote\\
+    `)
+console.log(`single quote'hi`)
+console.log(`single dollar`)
+console.log(`quoteconnection`)
+console.log(`double quote`)
+console.log(`double quote connection`)
+console.log(`double quote with escapes "`)
+console.log(`double ${env.dollar}`)
 ////echo "double subshell $(echo hi)"
-////echo $dollar'connection'
-////echo `back ticks`
-////echo "Greeting: ${greeting}"
-////echo "Greeting upper: ${greeting^^}"      // Uppercase
-////echo "Greeting length: ${#greeting}"      // Length
-////echo "Default fallback: ${undefined_var:-DefaultVal}" // Default if unset
+console.log(`dollaconnection`)
+////echo `backticks`
+console.log(`Greeting: ${env.greeting}`)
+console.log(`Greeting upper: \${greeting^^}`)      // Uppercase
+console.log(`Greeting length: \${#greeting}`)      // Length
+console.log(`Default fallback: \${undefined_var:-DefaultVal}`) // Default if unset
 env.filename = `archive.tar.gz`
-////echo "Base name: ${filename%%.*}"         // Remove longest match from end
-////echo "Extension: ${filename##*.}"         // Remove longest match from start
+console.log(`Base name: \${filename%%.*}`)         // Remove longest match from end
+console.log(`Extension: \${filename##*.}`)         // Remove longest match from start
 
-// ========== COMMANDS & PIPING ==========
+// ========== COMMANDS & PIPELINES ==========
 
-////echo "User processes:"
-////ps aux | grep "$USER" | grep -v grep
-////
-////# ========== CHAINING ==========
-////mkdir -p /tmp/demo && echo "Created demo dir" || echo "Failed to create dir"
+console.log(`User processes:`)
+await $$`ps aux`
+await $$`ps aux > /dev/null`
+await $$`ps aux`.stdout("null").stderr("null")
+await $$`ps aux`.stdout("null").stderr("null")
+await $$`ps aux`.stdout(appendTo(`./somefile`)).stderr(appendTo(`./somefile`))
+await $$`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
+await $$`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
+await $$`ps aux`.stdout(...$stderr).stderr(...$stderr)
+// ps aux 2> >(cat)
+// ps aux | grep "$USER"
+// ps aux &>/dev/null | grep "$USER"
+// ps aux 1>&2 2>/dev/null | grep "$USER"
+// ps aux | grep "$USER" | grep -v grep
+// cat <<< 'hello'
+// ls somefile thatdoesnotexist 1>/dev/null 2> >(grep "No such")
+// diff <(ls dir1) <(ls dir2)
+// paste <(ls dir1) <(ls dir2)
 
-// ========== ESCAPING ==========
+// # ========== CHAINING ==========
+// mkdir -p /tmp/demo
+// mkdir -p /tmp/demo && echo "Created demo dir"
+// mkdir -p /tmp/demo && echo "Created demo dir" || echo "Failed to create dir"
 
-////echo "This is a quote: \" and this is a backslash: \\"
+// # ========== ESCAPING ==========
 
-// ========== CALL FUNCTION ==========
-////say_hello "$name"
-////greet "Bob"
+// echo "This is a quote: \" and this is a backslash: \\"
 
-// ========== END ==========
-////echo "Script completed successfully!"
+// # ========== CALL FUNCTION ==========
+// say_hello "$name"
+// greet "Bob"
+
+// # ========== END ==========
+// echo "Script completed successfully!"
