@@ -295,6 +295,175 @@
         <fi text="fi" />
     </if_statement>
     <whitespace text="\n\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="Are you sure?" />
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <";" text=";" />
+    <command>
+        <command_name>
+            <word text="read" />
+        </command_name>
+        <whitespace text=" " />
+        <word text="ANSWER" />
+    </command>
+    <";" text=";" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+    </command>
+    <whitespace text="\n" />
+    <if_statement>
+        <if text="if" />
+        <whitespace text=" " />
+        <test_command>
+            <"[" text="[" />
+            <whitespace text=" " />
+            <binary_expression>
+                <unary_expression>
+                    <"!" text="!" />
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <simple_expansion>
+                            <"$" text="$" />
+                            <variable_name text="ANSWER" />
+                        </simple_expansion>
+                        <"\"" text="\"" />
+                    </string>
+                </unary_expression>
+                <whitespace text=" " />
+                <"=~" text="=~" />
+                <whitespace text=" " />
+                <regex text="^[Yy]" />
+            </binary_expression>
+            <whitespace text=" " />
+            <"]" text="]" />
+        </test_command>
+        <whitespace text="\n" />
+        <then text="then" />
+        <whitespace text="\n    " />
+        <command>
+            <command_name>
+                <word text="exit" />
+            </command_name>
+            <whitespace text=" " />
+            <number text="1" />
+        </command>
+        <whitespace text="\n" />
+        <fi text="fi" />
+    </if_statement>
+    <whitespace text="\n\n" />
+    <comment text="# if curl exists" />
+    <whitespace text="\n" />
+    <if_statement>
+        <if text="if" />
+        <whitespace text=" " />
+        <test_command>
+            <"[" text="[" />
+            <whitespace text=" " />
+            <unary_expression>
+                <test_operator text="-n" />
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <command_substitution>
+                        <"$(" text="$(" />
+                        <command>
+                            <command_name>
+                                <word text="command" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <word text="-v" />
+                            <whitespace text=" " />
+                            <string>
+                                <"\"" text="\"" />
+                                <string_content text="curl" />
+                                <"\"" text="\"" />
+                            </string>
+                        </command>
+                        <")" text=")" />
+                    </command_substitution>
+                    <"\"" text="\"" />
+                </string>
+            </unary_expression>
+            <whitespace text=" " />
+            <"]" text="]" />
+        </test_command>
+        <whitespace text="\n" />
+        <then text="then" />
+        <whitespace text="\n    " />
+        <command>
+            <command_name>
+                <word text="curl" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="-s" />
+            <whitespace text=" " />
+            <word text="https://example.com" />
+        </command>
+        <whitespace text="\n" />
+        <fi text="fi" />
+    </if_statement>
+    <whitespace text="\n\n" />
+    <comment text="# if name_of_command doesnt exist" />
+    <whitespace text="\n" />
+    <if_statement>
+        <if text="if" />
+        <whitespace text=" " />
+        <test_command>
+            <"[" text="[" />
+            <whitespace text=" " />
+            <unary_expression>
+                <test_operator text="-z" />
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <command_substitution>
+                        <"$(" text="$(" />
+                        <command>
+                            <command_name>
+                                <word text="command" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <word text="-v" />
+                            <whitespace text=" " />
+                            <string>
+                                <"\"" text="\"" />
+                                <string_content text="name_of_command" />
+                                <"\"" text="\"" />
+                            </string>
+                        </command>
+                        <")" text=")" />
+                    </command_substitution>
+                    <"\"" text="\"" />
+                </string>
+            </unary_expression>
+            <whitespace text=" " />
+            <"]" text="]" />
+        </test_command>
+        <whitespace text="\n" />
+        <then text="then" />
+        <whitespace text="\n    " />
+        <command>
+            <command_name>
+                <word text=":" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="hji" />
+        </command>
+        <whitespace text="\n" />
+        <fi text="fi" />
+    </if_statement>
+    <whitespace text="\n\n" />
     <comment text="# FOR LOOP" />
     <whitespace text="\n" />
     <for_statement>

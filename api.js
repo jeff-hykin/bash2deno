@@ -53,237 +53,311 @@ export function translate(code) {
     
     let inPipeline = false
     function translateInner(node, {topLevel=false}={}) {
-        function convertArg(node) {
-            // possible:
-                // <raw_string>
-                // <word>
-                // <number>
-                // <text> // for newline escapes
-                // <command_substitution>
-                // <simple_expansion>
-                // <command_name>
-                // <string>
-                // <brace_expression>
-                // <expansion>
-                // <concatenation>
-                // <ansi_c_string> AKA $''
-            if (node.type == "word"||node.type == "number") {
-                let text = node.text
-                text = text.replace(/\\([a]|[^a])/g, "$1")
-                // TODO: glob expansion
-                // TODO: some brace expansion ends up here
-                // FIXME: probably some other special stuff like !
-                return escapeJsString(text).slice(1, -1)
-            } else if (node.type == "command_substitution") {
-                return `\${${node.children.map(translateInner).join("")}.text()}`
-            } else if (node.type == "raw_string") {
-                return escapeJsString(node.text.slice(1, -1)).slice(1, -1)
-            } else if (node.type == "simple_expansion") {
-                const out = ()=>`\${env${escapeJsKeyAccess(node.text.replace(/^\$\{?|\}?$/g,""))}}`
-                // for easy joining later
-                out.toString = out
-                return [ out ]
-            } else if (node.type == "string_content") {
-                return node.children.map(translateInner).join("")
-            } else if (node.type == "\"") {
-                return ""
-            } else if (node.type == "string") {
-                let output = node.children.map(convertArg).join("")
-                // return node.children.map(convertArg).join("")
-                let text = node.text.slice(1, -1)
-                // FIXME: handle sub-shell better
-                if (text.match(/(?<!\\)(\\\\)*\$\(/)) {
-                    // Fail for now
-                    return null
-                }
-                const patternForSimpleVarExpansion = /(?<=^(?:\\\\)*|[^\\](?:\\\\)*)\$(?:(\w+)\b|\{(\w+)\})/g
-                // need to make all groups non-capturing for split
-                const patternForSplit =              /(?<=^(?:\\\\)*|[^\\](?:\\\\)*)\$(?:(?:\w+)\b|\{(?:\w+)\})/g
-                const simpleExpansionNames = text.matchAll(patternForSimpleVarExpansion).map(each=>each[1]||each[2])
-                const otherTexts = text.split(patternForSplit).map(each=>escapeJsString(bashUnescape(each)).slice(1, -1))
-                const simpleEnvInterpolates = simpleExpansionNames.map(each=>{
-                    usedVars = true
-                    const out = ()=>`\${env${escapeJsKeyAccess(each)}}`
-                    // for easy joining later
+        // 
+        // helpers
+        // 
+            function convertArg(node) {
+                // possible:
+                    // <raw_string>
+                    // <word>
+                    // <number>
+                    // <text> // for newline escapes
+                    // <command_substitution>
+                    // <simple_expansion>
+                    // <command_name>
+                    // <string>
+                    // <brace_expression>
+                    // <expansion>
+                    // <concatenation>
+                    // <ansi_c_string> AKA $''
+                if (node.type == "word"||node.type == "number") {
+                    let text = node.text
+                    text = text.replace(/\\([a]|[^a])/g, "$1")
+                    // TODO: glob expansion
+                    // TODO: some brace expansion ends up here
+                    // FIXME: probably some other special stuff like !
+                    return escapeJsString(text).slice(1, -1)
+                } else if (node.type == "`") {
+                    return ""
+                } else if (node.type == "command_substitution") {
+                    const out = ()=>`\${${node.children.map(translateInner).join("")}.text()}`
                     out.toString = out
                     return out
-                })
-                output = [...zipLong(otherTexts, simpleEnvInterpolates)].flat(1).slice(0,-1)
-                return output
-            } else if (node.type == "concatenation" || node.type == "command_name") {
-                return node.children.map(convertArg)
-            } else if (node.type == "brace_expression") {
-                // FIXME
-                return node.text
-            } else if (node.type == "ansi_c_string") {
-                let text = node.text.slice(2, -1)
-                text = bashUnescape(text)
-                text = escapeJsString(text).slice(1, -1)
-                // FIXME: this is not how ansi_c_string's work
-                return text
-            } else {
-                console.warn(`unhandled node type:`,node.type)
-                return null
-            }
-        }
-
-        function convertArgs(nodes, {asArrayString=false, asArray=false, asSingleString=false, debug=false} = {}) {
-            if (typeof nodes == "string") {
-                const root = parser.parse(": "+nodes).rootNode
-                nodes = root.quickQueryFirst(`(command)`).children.slice(2)
-            }
-            let currentArg = []
-            let createNewArg = true // this is to handle annoying edge cases by lazily creating new args
-            const args = []
-            let escapedNewline = false
-            // console.debug(`nodes.map(each=>each.text) is:`,nodes.map(each=>each.text))
-            for (const eachNode of nodes) {
-                // 
-                // find argument splitter
-                // 
-                if (eachNode.type == "text" && eachNode.text == "\\") {
-                    escapedNewline = true
-                    continue
-                }
-                if (eachNode.type == "whitespace") {
-                    // concat case. Note if whitespace is "\n   " (not just "\n") then it does split arguments
-                    if (escapedNewline && eachNode.text == "\n") {
-                        continue
+                } else if (node.type == "raw_string") {
+                    return escapeJsString(node.text.slice(1, -1)).slice(1, -1)
+                } else if (node.type == "simple_expansion") {
+                    const out = ()=>`\${env${escapeJsKeyAccess(node.text.replace(/^\$\{?|\}?$/g,""))}}`
+                    // for easy joining later
+                    out.toString = out
+                    return [ out ]
+                } else if (node.type == "string_content") {
+                    return escapeJsString(bashUnescape(node.text)).slice(1, -1)
+                } else if (node.type == "\"") {
+                    return ""
+                } else if (node.type == "string") {
+                    let output = node.children.map(convertArg).join("")
+                    return output
+                } else if (node.type == "concatenation" || node.type == "command_name") {
+                    return node.children.map(convertArg)
+                } else if (node.type == "brace_expression") {
+                    // FIXME
+                    return node.text
+                } else if (node.type == "ansi_c_string") {
+                    let text = node.text.slice(2, -1)
+                    text = bashUnescape(text)
+                    text = escapeJsString(text).slice(1, -1)
+                    // FIXME: this is not how ansi_c_string's work
+                    return text
+                } else if (node.type == "expansion") {
+                    const varName = node.quickQueryFirst(`(variable_name)`).text
+                    usedVars = true
+                    const varEscaped = `env${escapeJsKeyAccess(varName)}`
+                    const debugReference = node.children.slice(1,-1).map(each=>each.text).join("")
+                    const operation = node.children.slice(1,-1).filter(each=>each.type!="variable_name").map(each=>each.text).join("")
+                    let output
+                    if (operation.trim() == "") {
+                        output = `${varEscaped}`
+                    } else if (debugReference.startsWith("#")) {
+                        output = `${varEscaped}.length`
+                    } else if (operation=="^^") {
+                        output = `${varEscaped}.toUpperCase()`
+                    // } else if (operation.trim().startsWith("-")) {
+                    } else {
+                        output = `env${escapeJsKeyAccess(varName)}/* FIXME: ${debugReference} */`
                     }
-                    // next argument
-                    createNewArg = true
-                    continue
-                }
-                escapedNewline = false
-                
-                if (createNewArg) {
-                    createNewArg = false
-                    currentArg = []
-                    args.push(currentArg)
-                }
-                const converted = convertArg(eachNode)
-                // fail
-                if (converted == null) {
-                    console.warn(`failed to convert arg:`,eachNode.text)
+                    return `\${${output}}`
+                } else {
+                    console.warn(`unhandled node type:`,node.type)
                     return null
                 }
-                currentArg.push(...[converted].flat(Infinity))
             }
-            
-            // args should be an array of array of (strings or functions)
-                // each function returns a string
-                // each string is js backticks escaped
-            // console.debug(`args is:`,args)
 
-            // TODO: handle the case of part of an arg being a function (e.g. splat, range, subshell, etc)
-            // debug && console.debug(`args is:`,args)
-            if (asArray) {
-                return args.map(each=>each.join(""))
-            } else if (asSingleString) {
-                if (args.length == 1 && args[0].length == 1 && args[0][0].toString().startsWith("${") && args[0][0].toString().endsWith("}")) {
-                    return args[0][0].toString().slice(2,-1)
+            function convertArgs(nodes, {asArrayString=false, asArray=false, asSingleString=false, debug=false} = {}) {
+                if (typeof nodes == "string") {
+                    const root = parser.parse(": "+nodes).rootNode
+                    nodes = root.quickQueryFirst(`(command)`).children.slice(2)
                 }
-                return `\`${args.map(each=>each.join("")).join(" ")}\``
-            } else if (asArrayString) {
-                return `[${args.map(each=>`\`${each.join("")}\``).join(", ")}]`
-            } else {
-                const argStrings = []
-                // check if no quotes needed, bash quotes only, or full js escaping needed
-                for (const each of args) {
-                    let noQuotesNeeded = true
-                    let onlyBashQuotesNeeded = true
-                    const aggregated = aggregateStrings(each)
-                    argStrings.push(
-                        aggregated.map(each=>{
-                            if (typeof each == 'string') {
-                                return shellEscapeArg(each)
-                            } else {
-                                return each.toString()
-                            }
-                        }).join("")
-                    )
-                }
-                return "`"+argStrings.join(" ")+"`"
-            }
-        }
-
-        function convertBashTestToJS(expr) {
-            expr = expr.trim()
-
-            // Remove surrounding [[ ]] if present
-            expr = expr.replace(/^\[\[\s*|\s*\]\]$/g, "")
-
-            // Handle "command -v foo" or "which foo"
-            const cmdMatch = expr.match(/^(command\s+-v|which)\s+(.+)$/)
-            if (cmdMatch) {
-                const cmd = cmdMatch[2].trim().replace(/^["']|["']$/g, "")
-                usesHasCommand = true
-                return `hasCommand("${cmd}")`
-            }
-            // Match binary expressions like "$a" = "hi"
-            const binaryOpMatch = expr.match(/^(.+?)\s*(!=|-eq|-ne|-gt|-lt|-ge|-le|==|=)\s*(.+)$/)
-            if (binaryOpMatch) {
-                const [, leftRaw, op, rightRaw] = binaryOpMatch
-                let left = convertArgs(leftRaw.trim(), {debug:false, asSingleString: true })
-                let right = convertArgs(rightRaw.trim(),{debug:false, asSingleString: true})
-                try {
-                    if (eval(left)-0 == eval(left)-0) {
-                        left = eval(left)-0
+                let currentArg = []
+                let createNewArg = true // this is to handle annoying edge cases by lazily creating new args
+                const args = []
+                let escapedNewline = false
+                // console.debug(`nodes.map(each=>each.text) is:`,nodes.map(each=>each.text))
+                for (const eachNode of nodes) {
+                    // 
+                    // find argument splitter
+                    // 
+                    if (eachNode.type == "text" && eachNode.text == "\\") {
+                        escapedNewline = true
+                        continue
                     }
-                } catch (error) {
-                    // left = `parseFloat(${left})`
-                }
-                try {
-                    if (eval(right)-0 == eval(right)-0) {
-                        right = eval(right)-0
+                    if (eachNode.type == "whitespace") {
+                        // concat case. Note if whitespace is "\n   " (not just "\n") then it does split arguments
+                        if (escapedNewline && eachNode.text == "\n") {
+                            continue
+                        }
+                        // next argument
+                        createNewArg = true
+                        continue
                     }
-                } catch (error) {
-                    // right = `parseFloat(${right})`
+                    escapedNewline = false
+                    
+                    if (createNewArg) {
+                        createNewArg = false
+                        currentArg = []
+                        args.push(currentArg)
+                    }
+                    const converted = convertArg(eachNode)
+                    // fail
+                    if (converted == null) {
+                        console.warn(`failed to convert arg:`,eachNode.text)
+                        return null
+                    }
+                    currentArg.push(...[converted].flat(Infinity))
                 }
+                
+                // args should be an array of array of (strings or functions)
+                    // each function returns a string
+                    // each string is js backticks escaped
+                // console.debug(`args is:`,args)
 
-                const opMap = {
-                    "=": "===",
-                    "==": "===",
-                    "!=": "!==",
-                    "-eq": "==",
-                    "-ne": "!=",
-                    "-gt": ">",
-                    "-lt": "<",
-                    "-ge": ">=",
-                    "-le": "<=",
+                // TODO: handle the case of part of an arg being a function (e.g. splat, range, subshell, etc)
+                // debug && console.debug(`args is:`,args)
+                if (asArray) {
+                    return args.map(each=>each.join(""))
+                } else if (asSingleString) {
+                    if (args.length == 1 && args[0].length == 1) {
+                        const onlyArg = args[0][0]
+                        if (onlyArg.toString().startsWith("${") && onlyArg.toString().endsWith("}")) {
+                            return onlyArg.toString().slice(2,-1)
+                        // dont quote numbers
+                        } else if (onlyArg.toString().match(/^\d+(\.\d+)?$/)) {
+                            return onlyArg.toString()
+                        }
+                    }
+                    return `\`${args.map(each=>each.join("")).join(" ")}\``
+                } else if (asArrayString) {
+                    return `[${args.map(each=>`\`${each.join("")}\``).join(", ")}]`
+                } else {
+                    const argStrings = []
+                    // check if no quotes needed, bash quotes only, or full js escaping needed
+                    for (const each of args) {
+                        let noQuotesNeeded = true
+                        let onlyBashQuotesNeeded = true
+                        const aggregated = aggregateStrings(each)
+                        argStrings.push(
+                            aggregated.map(each=>{
+                                if (typeof each == 'string') {
+                                    return shellEscapeArg(each)
+                                } else {
+                                    return each.toString()
+                                }
+                            }).join("")
+                        )
+                    }
+                    return "`"+argStrings.join(" ")+"`"
                 }
-
-                const jsOp = opMap[op]
-                return `${left} ${jsOp} ${right}`
             }
 
-            // Match file tests: -e, -d, -L, -x
-            const fileTestMatch = expr.match(/^-(e|d|L|x)\s+(.+)$/)
-            if (fileTestMatch) {
-                const flag = fileTestMatch[1]
-                const fileExpr = convertArgs(fileTestMatch[2].trim())
+            function convertBashTestToJS(expr) {
+                expr = expr.trim()
 
-                switch (flag) {
-                    case "e":
-                        usesFs = true
-                        return `fs.existsSync(${fileExpr})`
-                    case "d":
-                        usesFs = true
-                        return `fs.existsSync(${fileExpr}) && fs.lstatSync(${fileExpr}).isDirectory()`
-                    case "L":
-                        usesFs = true
-                        return `fs.existsSync(${fileExpr}) && fs.lstatSync(${fileExpr}).isSymbolicLink()`
-                    case "x":
-                        usesFs = true
-                        return `fs.existsSync(${fileExpr}) && (() => { try { fs.accessSync(${fileExpr}, fs.constants.X_OK); return true; } catch (e) { return false; } })()`
+                let negated = ""
+                if (expr.match(/^!\s+/)) {
+                    expr = expr.replace(/^!\s+/,"")
+                    negated = "!"
                 }
+                const asSingleString = (arg)=>convertArgs(arg, {asSingleString: true})
+                
+                let match
+                // 
+                // command exists check
+                // 
+                if (match=expr.match(/\[\[?\s+-n\s+"?\$\((?:command\s+-v|which)\s+(.+?)\)"?\s+\]\]?/)) {
+                    usesHasCommand = true
+                    return `${negated} hasCommand(${convertArgs(match[1], {asSingleString: true})})`
+                }
+                if (match=expr.match(/\[\[?\s+-z\s+"?\$\((?:command\s+-v|which)\s+(.+?)\)"?\s+\]\]?/)) {
+                    usesHasCommand = true
+                    return `${negated?"":"!"} hasCommand(${convertArgs(match[1], {asSingleString: true})})`
+                }
+                
+                // 
+                // -n
+                // 
+                if (match=expr.match(/\[\[?\s+-n\s+(.+?)\s+\]\]?/)) {
+                    if (negated) {
+                        return `${asSingleString(match[1])}.length == 0`
+                    } else {
+                        return `${asSingleString(match[1])}.length > 0`
+                    }
+                }
+                // 
+                // -z
+                // 
+                if (match=expr.match(/\[\[?\s+-z\s+(.+?)\s+\]\]?/)) {
+                    if (negated) {
+                        return `${asSingleString(match[1])}.length > 0`
+                    } else {
+                        return `${asSingleString(match[1])}.length == 0`
+                    }
+                }
+                
+                // Remove surrounding [[ ]] if present
+                expr = expr.replace(/^\[\[?\s*|\s*\]?\]$/g, "")
+
+                // check negation again
+                if (expr.match(/^!\s+/)) {
+                    expr = expr.replace(/^!\s+/,"")
+                    if (negated) {
+                        negated = ""
+                    } else {
+                        negated = "!"
+                    }
+                }
+
+
+                
+                // hasCommand without []'s
+                const cmdMatch = expr.match(/^(command\s+-v|which)\s+(.+)$/)
+                if (cmdMatch) {
+                    const cmd = cmdMatch[2].trim().replace(/^["']|["']$/g, "")
+                    usesHasCommand = true
+                    return `hasCommand("${cmd}")`
+                }
+                // Match binary expressions like "$a" = "hi"
+                const binaryOpMatch = expr.match(/^(.+?)\s+(!=|-eq|-ne|-gt|-lt|-ge|-le|==|=~|=)\s+(.+)$/)
+                if (binaryOpMatch) {
+                    const [, leftRaw, op, rightRaw] = binaryOpMatch
+                    let left = convertArgs(leftRaw.trim(), {debug:false, asSingleString: true })
+                    let right = convertArgs(rightRaw.trim(),{debug:false, asSingleString: true})
+                    try {
+                        if (eval(left)-0 == eval(left)-0) {
+                            left = eval(left)-0
+                        }
+                    } catch (error) {
+                        // left = `parseFloat(${left})`
+                    }
+                    try {
+                        if (eval(right)-0 == eval(right)-0) {
+                            right = eval(right)-0
+                        }
+                    } catch (error) {
+                        // right = `parseFloat(${right})`
+                    }
+
+                    const opMap = {
+                        "=": "===",
+                        "==": "===",
+                        "!=": "!==",
+                        "-eq": "==",
+                        "-ne": "!=",
+                        "-gt": ">",
+                        "-lt": "<",
+                        "-ge": ">=",
+                        "-le": "<=",
+                    }
+
+                    const jsOp = opMap[op]
+
+                    if (op == "=~") {
+                        return `${left}.match(/${right.replace(/^\`|\`$/g,"")}/)`
+                    }
+                    return `${left} ${jsOp} ${right}`
+                }
+
+                // Match file tests: -e, -d, -L, -x
+                const fileTestMatch = expr.match(/^-(e|d|L|x)\s+(.+)$/)
+                if (fileTestMatch) {
+                    const flag = fileTestMatch[1]
+                    const fileExpr = convertArgs(fileTestMatch[2].trim())
+
+                    switch (flag) {
+                        case "e":
+                            usesFs = true
+                            return `fs.existsSync(${fileExpr})`
+                        case "d":
+                            usesFs = true
+                            return `fs.existsSync(${fileExpr}) && fs.lstatSync(${fileExpr}).isDirectory()`
+                        case "L":
+                            usesFs = true
+                            return `fs.existsSync(${fileExpr}) && fs.lstatSync(${fileExpr}).isSymbolicLink()`
+                        case "x":
+                            usesFs = true
+                            return `fs.existsSync(${fileExpr}) && (() => { try { fs.accessSync(${fileExpr}, fs.constants.X_OK); return true; } catch (e) { return false; } })()`
+                    }
+                }
+
+                // Fallback for unrecognized formats
+                return fallbackTranslate({text:expr})
             }
 
-            // Fallback for unrecognized formats
-            return fallbackTranslate({text:expr})
-        }
+            const fallbackTranslate = (node)=>"////" + node.text.replace(/\n/g, "\n////")
 
-        const fallbackTranslate = (node)=>"////" + node.text.replace(/\n/g, "\n////")
+        // 
+        // 
+        // main "switch"
+        // 
+        // 
         if (node.type == "program") {
             const contents = node.children.map(each=>translateInner(each, {topLevel:true})).join("")
             const imports = [
@@ -314,7 +388,7 @@ export function translate(code) {
                 imports.push(`import fs from "node:fs"`)
             }
             return imports.concat(helpers).join("\n")+"\n"+contents
-        } else if (node.type == "$(" || node.type == ")") {
+        } else if (node.type == "$(" || node.type == ")" || node.type == "`") {
             return ""
         } else if (node.type == "whitespace") {
             return node.text
@@ -686,6 +760,9 @@ export function translate(code) {
         } else if (node.type == "fi") {
             return `\n${node.indent}}`
         } else if (node.type == "test_command") {
+            if (node.text.match(/\(\(.+\)\)/)) {
+                return node.text.slice(2,-2).replace(/\w+/g,"env.$&")
+            }
             return convertBashTestToJS(node.text) + ") {"
         } else if (node.type == "if_statement") {
             // FIXME: handle the semicolon that can appear before the then
@@ -834,7 +911,7 @@ export function translate(code) {
         } else if (node.type == "done") {
             return `\n${node.indent}}`
         } else if (node.type == "do_group") {
-            return node.children.map(translateInner).join("")
+            return node.children.map(each=>translateInner(each, { topLevel: true })).join("")
         } else if (node.type == "for_statement") {
             let nodes = []
             let foundGroup = false
@@ -855,10 +932,10 @@ export function translate(code) {
                 if (inExpr.match(/^{(\d+)\.\.(\d+)}$/)) {
                     const [ , start, end ] = inExpr.match(/^{(\d+)\.\.(\d+)}$/)
                     usedVars = true
-                    front = `for (env${escapeJsKeyAccess(varName)} = ${start}; env${escapeJsKeyAccess(varName)} <= ${end}; env${escapeJsKeyAccess(varName)}++) {`
+                    front = `for (env${escapeJsKeyAccess(varName)} = ${start}; env${escapeJsKeyAccess(varName)} <= ${end}; env${escapeJsKeyAccess(varName)}++) `
                 }
             }
-            return front + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`))
+            return front + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`), { topLevel: true })
         // 
         // while
         // 
@@ -880,7 +957,7 @@ export function translate(code) {
             const whilePart = nodes.map(each=>each.text).join("")
             front = front || fallbackTranslate({text:whilePart})
             // let match = whilePart.match(/^while\s+(.+?)\s+in\s+(.+?)\s*;?\s*$/)
-            return front + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`))
+            return front + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`), { topLevel: true })
         // 
         // compound_statement
         // 
@@ -892,7 +969,7 @@ export function translate(code) {
         } else if (node.type == "function_definition") {
             const prefixNodes = node.children.filter(each=>each.type != "compound_statement")
             return `// FIXME: bash function: ${prefixNodes.map(each=>each.text).join("")}\nfunction ${prefixNodes.filter(each=>each.type=="word")[0].text}() ${translateInner(node.quickQueryFirst(`(compound_statement)`))}`
-            return node.children.map(translateInner).join("")
+            return node.children.map(each=>translateInner(each, { topLevel: true })).join("")
         // 
         // couldn't translate
         // 

@@ -33,6 +33,24 @@ else
   echo "Who are you?"
 fi
 
+echo "Are you sure?";read ANSWER;echo
+if [ ! "$ANSWER" =~ ^[Yy] ]
+then
+    exit 1
+fi
+
+# if curl exists
+if [ -n "$(command -v "curl")" ]
+then
+    curl -s https://example.com
+fi
+
+# if name_of_command doesnt exist
+if [ -z "$(command -v "name_of_command")" ]
+then
+    : hji
+fi
+
 # FOR LOOP
 for i in {1..3}; do
   echo "Loop #$i"
