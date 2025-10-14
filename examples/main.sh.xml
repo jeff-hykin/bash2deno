@@ -94,73 +94,6 @@
         <variable_name text="number" />
     </unset_command>
     <whitespace text="\n\n" />
-    <comment text="# ========== SET OPTIONS ==========" />
-    <whitespace text="\n" />
-    <command>
-        <command_name>
-            <word text="set" />
-        </command_name>
-        <whitespace text=" " />
-        <word text="-euo" />
-        <whitespace text=" " />
-        <word text="pipefail" />
-    </command>
-    <whitespace text="  " />
-    <comment text="# Exit on error, undefined var is error, and pipe fails propagate" />
-    <whitespace text="\n\n" />
-    <comment text="# ========== FUNCTION DEFINITION ==========" />
-    <whitespace text="\n" />
-    <function_definition>
-        <word text="say_hello" />
-        <"(" text="(" />
-        <")" text=")" />
-        <whitespace text=" " />
-        <compound_statement>
-            <"{" text="{" />
-            <whitespace text="\n  " />
-            <declaration_command>
-                <local text="local" />
-                <whitespace text=" " />
-                <variable_assignment>
-                    <variable_name text="who" />
-                    <"=" text="=" />
-                    <string>
-                        <"\"" text="\"" />
-                        <expansion>
-                            <"${" text="${" />
-                            <variable_name text="1" />
-                            <":-" text=":-" />
-                            <word text="World" />
-                            <"}" text="}" />
-                        </expansion>
-                        <"\"" text="\"" />
-                    </string>
-                </variable_assignment>
-            </declaration_command>
-            <whitespace text="  " />
-            <comment text="# Default parameter" />
-            <whitespace text="\n  " />
-            <command>
-                <command_name>
-                    <word text="echo" />
-                </command_name>
-                <whitespace text=" " />
-                <string>
-                    <"\"" text="\"" />
-                    <string_content text="Hello\\\", " />
-                    <simple_expansion>
-                        <"$" text="$" />
-                        <variable_name text="who" />
-                    </simple_expansion>
-                    <string_content text="!" />
-                    <"\"" text="\"" />
-                </string>
-            </command>
-            <whitespace text="\n" />
-            <"}" text="}" />
-        </compound_statement>
-    </function_definition>
-    <whitespace text="\n\n" />
     <comment text="# ========== ALIASES ==========" />
     <whitespace text="\n" />
     <command>
@@ -185,7 +118,461 @@
         </concatenation>
     </command>
     <whitespace text="\n\n" />
+    <comment text="# ========== redirect/pipes/chaining ==========" />
+    <whitespace text="\n\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="double with subshell " />
+            <command_substitution>
+                <"$(" text="$(" />
+                <command>
+                    <command_name>
+                        <word text="echo" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <word text="hi" />
+                </command>
+                <")" text=")" />
+            </command_substitution>
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="double subshell " />
+            <command_substitution>
+                <"$(" text="$(" />
+                <command>
+                    <command_name>
+                        <word text="echo" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <command_substitution>
+                            <"$(" text="$(" />
+                            <command>
+                                <command_name>
+                                    <word text="echo" />
+                                </command_name>
+                                <whitespace text=" " />
+                                <word text="subsub" />
+                            </command>
+                            <")" text=")" />
+                        </command_substitution>
+                        <"\"" text="\"" />
+                    </string>
+                </command>
+                <")" text=")" />
+            </command_substitution>
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <concatenation>
+            <simple_expansion>
+                <"$" text="$" />
+                <variable_name text="dollar" />
+            </simple_expansion>
+            <raw_string text="'connection'" />
+        </concatenation>
+    </command>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <command_substitution>
+            <"`" text="`" />
+            <command>
+                <command_name>
+                    <word text="backticks" />
+                </command_name>
+            </command>
+            <"`" text="`" />
+        </command_substitution>
+    </command>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="Greeting: " />
+            <expansion>
+                <"${" text="${" />
+                <variable_name text="greeting" />
+                <"}" text="}" />
+            </expansion>
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="Greeting upper: " />
+            <expansion>
+                <"${" text="${" />
+                <variable_name text="greeting" />
+                <"^^" text="^^" />
+                <"}" text="}" />
+            </expansion>
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <whitespace text="      " />
+    <comment text="# Uppercase" />
+    <whitespace text="\n" />
+    <redirected_statement>
+        <command>
+            <command_name>
+                <word text="ps" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <file_redirect>
+            <">" text=">" />
+            <whitespace text=" " />
+            <word text="/dev/null" />
+        </file_redirect>
+    </redirected_statement>
+    <whitespace text="\n" />
+    <redirected_statement>
+        <command>
+            <command_name>
+                <word text="ps" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <file_redirect>
+            <"&>" text="&>" />
+            <word text="/dev/null" />
+        </file_redirect>
+    </redirected_statement>
+    <whitespace text="\n" />
+    <pipeline>
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </pipeline>
+    <whitespace text="\n" />
+    <pipeline>
+        <command>
+            <command_name>
+                <word text="ps" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="aux" />
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="USER" />
+                </simple_expansion>
+                <"\"" text="\"" />
+            </string>
+        </command>
+        <whitespace text=" " />
+        <"|" text="|" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="grep" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="-v" />
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <string_content text="double pipe" />
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </pipeline>
+    <";" text=";" />
+    <whitespace text="\n" />
+    <list>
+        <list>
+            <list>
+                <command>
+                    <command_name>
+                        <word text="mkdir" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <word text="-p" />
+                    <whitespace text=" " />
+                    <word text="/tmp/demo" />
+                </command>
+                <whitespace text=" " />
+                <"&&" text="&&" />
+                <whitespace text=" " />
+                <command>
+                    <command_name>
+                        <word text="echo" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <string_content text="Created demo dir" />
+                        <"\"" text="\"" />
+                    </string>
+                </command>
+            </list>
+            <whitespace text=" " />
+            <"&&" text="&&" />
+            <whitespace text=" " />
+            <command>
+                <command_name>
+                    <word text="echo" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <string_content text="Created demo dir" />
+                    <"\"" text="\"" />
+                </string>
+            </command>
+        </list>
+        <whitespace text=" " />
+        <"&&" text="&&" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <string>
+                <"\"" text="\"" />
+                <string_content text="Created demo dir" />
+                <"\"" text="\"" />
+            </string>
+        </command>
+    </list>
+    <whitespace text="\n\n" />
     <comment text="# ========== CONTROL FLOW ==========" />
+    <whitespace text="\n\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="Are you sure?" />
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <";" text=";" />
+    <command>
+        <command_name>
+            <word text="read" />
+        </command_name>
+        <whitespace text=" " />
+        <word text="ANSWER" />
+    </command>
+    <";" text=";" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+    </command>
+    <whitespace text="\n" />
+    <if_statement>
+        <if text="if" />
+        <whitespace text=" " />
+        <test_command>
+            <"[" text="[" />
+            <whitespace text=" " />
+            <binary_expression>
+                <unary_expression>
+                    <"!" text="!" />
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <simple_expansion>
+                            <"$" text="$" />
+                            <variable_name text="ANSWER" />
+                        </simple_expansion>
+                        <"\"" text="\"" />
+                    </string>
+                </unary_expression>
+                <whitespace text=" " />
+                <"=~" text="=~" />
+                <whitespace text=" " />
+                <regex text="^[Yy]" />
+            </binary_expression>
+            <whitespace text=" " />
+            <"]" text="]" />
+        </test_command>
+        <";" text=";" />
+        <whitespace text=" " />
+        <then text="then" />
+        <whitespace text="\n    " />
+        <command>
+            <command_name>
+                <word text="exit" />
+            </command_name>
+            <whitespace text=" " />
+            <number text="1" />
+        </command>
+        <whitespace text="\n" />
+        <fi text="fi" />
+    </if_statement>
+    <whitespace text="\n\n" />
+    <for_statement>
+        <for text="for" />
+        <whitespace text=" " />
+        <variable_name text="arg" />
+        <whitespace text=" " />
+        <in text="in" />
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <simple_expansion>
+                <"$" text="$" />
+                <special_variable_name text="@" />
+            </simple_expansion>
+            <"\"" text="\"" />
+        </string>
+        <";" text=";" />
+        <whitespace text=" " />
+        <do_group>
+            <do text="do" />
+            <whitespace text="\n    " />
+            <command>
+                <command_name>
+                    <word text="echo" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <simple_expansion>
+                        <"$" text="$" />
+                        <variable_name text="arg" />
+                    </simple_expansion>
+                    <"\"" text="\"" />
+                </string>
+            </command>
+            <whitespace text="\n" />
+            <done text="done" />
+        </do_group>
+    </for_statement>
+    <whitespace text="\n\n" />
+    <comment text="# WHILE LOOP" />
+    <whitespace text="\n" />
+    <variable_assignment>
+        <variable_name text="counter" />
+        <"=" text="=" />
+        <number text="0" />
+    </variable_assignment>
+    <whitespace text="\n" />
+    <while_statement>
+        <while text="while" />
+        <whitespace text=" " />
+        <test_command>
+            <"[[" text="[[" />
+            <whitespace text=" " />
+            <binary_expression>
+                <simple_expansion>
+                    <"$" text="$" />
+                    <variable_name text="counter" />
+                </simple_expansion>
+                <whitespace text=" " />
+                <test_operator text="-lt" />
+                <whitespace text=" " />
+                <number text="3" />
+            </binary_expression>
+            <whitespace text=" " />
+            <"]]" text="]]" />
+        </test_command>
+        <";" text=";" />
+        <whitespace text=" " />
+        <do_group>
+            <do text="do" />
+            <whitespace text="\n  " />
+            <command>
+                <command_name>
+                    <word text="echo" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <string_content text="Counter: " />
+                    <simple_expansion>
+                        <"$" text="$" />
+                        <variable_name text="counter" />
+                    </simple_expansion>
+                    <"\"" text="\"" />
+                </string>
+            </command>
+            <whitespace text="\n  " />
+            <test_command>
+                <"((" text="((" />
+                <word text="counter++" />
+                <"))" text="))" />
+            </test_command>
+            <whitespace text="\n" />
+            <done text="done" />
+        </do_group>
+    </while_statement>
     <whitespace text="\n\n" />
     <comment text="# IF-ELSE" />
     <whitespace text="\n" />
@@ -292,73 +679,6 @@
             </command>
             <whitespace text="\n" />
         </else_clause>
-        <fi text="fi" />
-    </if_statement>
-    <whitespace text="\n\n" />
-    <command>
-        <command_name>
-            <word text="echo" />
-        </command_name>
-        <whitespace text=" " />
-        <string>
-            <"\"" text="\"" />
-            <string_content text="Are you sure?" />
-            <"\"" text="\"" />
-        </string>
-    </command>
-    <";" text=";" />
-    <command>
-        <command_name>
-            <word text="read" />
-        </command_name>
-        <whitespace text=" " />
-        <word text="ANSWER" />
-    </command>
-    <";" text=";" />
-    <command>
-        <command_name>
-            <word text="echo" />
-        </command_name>
-    </command>
-    <whitespace text="\n" />
-    <if_statement>
-        <if text="if" />
-        <whitespace text=" " />
-        <test_command>
-            <"[" text="[" />
-            <whitespace text=" " />
-            <binary_expression>
-                <unary_expression>
-                    <"!" text="!" />
-                    <whitespace text=" " />
-                    <string>
-                        <"\"" text="\"" />
-                        <simple_expansion>
-                            <"$" text="$" />
-                            <variable_name text="ANSWER" />
-                        </simple_expansion>
-                        <"\"" text="\"" />
-                    </string>
-                </unary_expression>
-                <whitespace text=" " />
-                <"=~" text="=~" />
-                <whitespace text=" " />
-                <regex text="^[Yy]" />
-            </binary_expression>
-            <whitespace text=" " />
-            <"]" text="]" />
-        </test_command>
-        <whitespace text="\n" />
-        <then text="then" />
-        <whitespace text="\n    " />
-        <command>
-            <command_name>
-                <word text="exit" />
-            </command_name>
-            <whitespace text=" " />
-            <number text="1" />
-        </command>
-        <whitespace text="\n" />
         <fi text="fi" />
     </if_statement>
     <whitespace text="\n\n" />
@@ -2035,5 +2355,71 @@
             <"\"" text="\"" />
         </string>
     </command>
+    <whitespace text="\n\n" />
+    <comment text="# ========== SET OPTIONS ==========" />
     <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="set" />
+        </command_name>
+        <whitespace text=" " />
+        <word text="-euo" />
+        <whitespace text=" " />
+        <word text="pipefail" />
+    </command>
+    <whitespace text="  " />
+    <comment text="# Exit on error, undefined var is error, and pipe fails propagate" />
+    <whitespace text="\n\n" />
+    <comment text="# ========== FUNCTION DEFINITION ==========" />
+    <whitespace text="\n" />
+    <function_definition>
+        <word text="say_hello" />
+        <"(" text="(" />
+        <")" text=")" />
+        <whitespace text=" " />
+        <compound_statement>
+            <"{" text="{" />
+            <whitespace text="\n  " />
+            <declaration_command>
+                <local text="local" />
+                <whitespace text=" " />
+                <variable_assignment>
+                    <variable_name text="who" />
+                    <"=" text="=" />
+                    <string>
+                        <"\"" text="\"" />
+                        <expansion>
+                            <"${" text="${" />
+                            <variable_name text="1" />
+                            <":-" text=":-" />
+                            <word text="World" />
+                            <"}" text="}" />
+                        </expansion>
+                        <"\"" text="\"" />
+                    </string>
+                </variable_assignment>
+            </declaration_command>
+            <whitespace text="  " />
+            <comment text="# Default parameter" />
+            <whitespace text="\n  " />
+            <command>
+                <command_name>
+                    <word text="echo" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <string_content text="Hello\\\", " />
+                    <simple_expansion>
+                        <"$" text="$" />
+                        <variable_name text="who" />
+                    </simple_expansion>
+                    <string_content text="!" />
+                    <"\"" text="\"" />
+                </string>
+            </command>
+            <whitespace text="\n" />
+            <"}" text="}" />
+        </compound_statement>
+    </function_definition>
 </program>

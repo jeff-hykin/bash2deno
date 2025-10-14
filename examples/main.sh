@@ -9,20 +9,41 @@ greeting="Hello, $name!"
 file_count=$(ls | wc -l)
 unset number
 
-# ========== SET OPTIONS ==========
-set -euo pipefail  # Exit on error, undefined var is error, and pipe fails propagate
-
-# ========== FUNCTION DEFINITION ==========
-say_hello() {
-  local who="${1:-World}"  # Default parameter
-  echo "Hello\", $who!"
-}
-
 # ========== ALIASES ==========
 alias ll='ls -lah'
 alias greet='say_hello'
 
+# ========== redirect/pipes/chaining ==========
+
+echo "double with subshell $(echo hi)"
+echo "double subshell $(echo "$(echo subsub)")"
+echo $dollar'connection'
+echo `backticks`
+echo "Greeting: ${greeting}"
+echo "Greeting upper: ${greeting^^}"      # Uppercase
+ps aux > /dev/null
+ps aux &>/dev/null
+echo aux | echo "$USER"
+ps aux | grep "$USER" | grep -v "double pipe";
+mkdir -p /tmp/demo && echo "Created demo dir" && echo "Created demo dir" && echo "Created demo dir"
+
 # ========== CONTROL FLOW ==========
+
+echo "Are you sure?";read ANSWER;echo
+if [ ! "$ANSWER" =~ ^[Yy] ]; then
+    exit 1
+fi
+
+for arg in "$@"; do
+    echo "$arg"
+done
+
+# WHILE LOOP
+counter=0
+while [[ $counter -lt 3 ]]; do
+  echo "Counter: $counter"
+  ((counter++))
+done
 
 # IF-ELSE
 if [[ "$name" == "Alice" ]]; then
@@ -31,12 +52,6 @@ elif [[ "$name" == "Bob" ]]; then
   echo "Hi Bob!"
 else
   echo "Who are you?"
-fi
-
-echo "Are you sure?";read ANSWER;echo
-if [ ! "$ANSWER" =~ ^[Yy] ]
-then
-    exit 1
 fi
 
 question="question? [y/n]";answer=''
@@ -166,3 +181,12 @@ greet "Bob"
 
 # ========== END ==========
 echo "Script completed successfully!"
+
+# ========== SET OPTIONS ==========
+set -euo pipefail  # Exit on error, undefined var is error, and pipe fails propagate
+
+# ========== FUNCTION DEFINITION ==========
+say_hello() {
+  local who="${1:-World}"  # Default parameter
+  echo "Hello\", $who!"
+}

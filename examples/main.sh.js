@@ -11,21 +11,41 @@ env.greeting = `Hello, ${env.name}!`
 env.file_count = await $`ls | wc -l`.text()
 delete env.number
 
-// ========== SET OPTIONS ==========
-// FIXME: set -euo pipefail  // Exit on error, undefined var is error, and pipe fails propagate
-
-// ========== FUNCTION DEFINITION ==========
-// FIXME: bash function: say_hello() 
-async function say_hello() {
-  env.who = env["1"]/* FIXME: 1:-World */  // Default parameter
-  await $`echo 'Hello", ${env.who}!'`
-}
-
 // ========== ALIASES ==========
 aliases.ll = `ls -lah`
 aliases.greet = `say_hello`
 
+// ========== redirect/pipes/chaining ==========
+
+console.log(`double with subshell ${await $`echo hi`.text()}`)
+console.log(`double subshell ${await $`echo '${await $`echo subsub`.text()}'`.text()}`)
+console.log(`${env.dollar}connection`)
+console.log(`${await $`backticks`.text()}`)
+console.log(`Greeting: ${env.greeting}`)
+console.log(`Greeting upper: ${env.greeting.toUpperCase()}`)      // Uppercase
+await $`ps aux > /dev/null`
+await $`ps aux`.stdout("null").stderr("null")
+await $`echo aux | echo '${env.USER}'`
+await $`ps aux | grep '${env.USER}' | grep -v 'double pipe'`;
+await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' && echo 'Created demo dir' && echo 'Created demo dir'`
+
 // ========== CONTROL FLOW ==========
+
+console.log(`Are you sure?`);env.ANSWER = prompt();console.log(``)
+if ( env.ANSWER.match(/^[Yy]/)) { 
+    await $`exit 1`
+}
+
+for (env.arg of Deno.args) {
+    console.log(`${env.arg}`)
+}
+
+// WHILE LOOP
+env.counter = 0
+while (env.counter < 3) {
+  console.log(`Counter: ${env.counter}`)
+  env.counter++
+}
 
 // IF-ELSE
 if ( env.name === `Alice`) { 
@@ -36,13 +56,6 @@ if ( env.name === `Alice`) {
 } else {
 
   await $`echo 'Who are you?'`
-
-}
-
-console.log(`Are you sure?`);env.ANSWER = prompt();console.log(``)
-if ( env.ANSWER.match(/^[Yy]/)) {
-
-    await $`exit 1`
 
 }
 
@@ -185,3 +198,13 @@ await $`greet Bob`
 
 // ========== END ==========
 console.log(`Script completed successfully!`)
+
+// ========== SET OPTIONS ==========
+// FIXME: set -euo pipefail  // Exit on error, undefined var is error, and pipe fails propagate
+
+// ========== FUNCTION DEFINITION ==========
+// FIXME: bash function: say_hello() 
+async function say_hello() {
+  env.who = env["1"]/* FIXME: 1:-World */  // Default parameter
+  await $`echo 'Hello", ${env.who}!'`
+}
