@@ -20,12 +20,29 @@ let code = translate(`echo "Hello World!"`)
 This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the code, and uses [dax](https://github.com/dsherret/dax) at runtime to make the code map nicely to bash.
 
 
-#### Limitations
+#### Features & Limitations
+
+- For loops
+- While loops
+- Redirection
+- Piping
+- Chaining `&&` and `||`
+- Aliases
+- Unset
+- Basic parameter expansion
+- Special variables $*, $@, $#, $1, $2, etc
+- Nested Command substitution
+- If statements
+- Command checks
 
 While most bash code will work, there are a few things that are not currently supported:
 
-- Case statements
-- Bash Functions
 - Heredocs
+- Bash Functions
+- Globbing (coming soon, just waiting on [this PR](https://github.com/dsherret/dax/pull/338))
+- Case statements
+- The `$?` variable
 - Bash Arrays
 - Advanced parameter expansion
+- Jobs and background task management
+- set pipefail
