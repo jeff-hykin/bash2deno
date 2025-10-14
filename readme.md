@@ -32,17 +32,26 @@ This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the
 - Basic parameter expansion
 - Special variables $*, $@, $#, $1, $2, etc
 - Nested Command substitution
+- prompt input (e.g. `read`)
+- Command checks (`which`, `command -v`)
 - If statements
-- Command checks
+    - String compare
+    - Number compare
+    - Is executable
+    - Is file
+    - Is directory
+    - String empty 
+    - String not empty
+    
 
 While most bash code will work, there are a few things that are not currently supported:
 
 - Heredocs
+- Jobs and background task management
 - Bash Functions
 - Globbing (coming soon, just waiting on [this PR](https://github.com/dsherret/dax/pull/338))
 - Case statements
 - The `$?` variable
 - Bash Arrays
 - Advanced parameter expansion
-- Jobs and background task management
 - set pipefail
