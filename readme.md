@@ -6,14 +6,14 @@ Try it yourself [online](https://jeff-hykin.github.io/bash2deno/). Make Bash scr
 
 ## How to Use
 
-There's an online version here: https://jeff-hykin.github.io/bash2deno/
-
 You can also run it programmatically:
 
 ```js
 import { translate } from "https://esm.sh/gh/jeff-hykin/bash2deno@1.0.0/main/api.js"
 let code = translate(`echo "Hello World!"`)
 ```
+
+There's an online version here: https://jeff-hykin.github.io/bash2deno/
 
 ## How it Works
 
