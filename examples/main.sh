@@ -39,6 +39,25 @@ then
     exit 1
 fi
 
+question="question? [y/n]";answer=''
+while true; do
+    break;
+    continue;
+    echo "$question"; read response
+    case "$response" in
+        [Yy]* ) answer='yes'; break;;
+        [Nn]* ) answer='no'; break;;
+        * ) echo "Please answer yes or no.";;
+    esac
+done
+
+if [ "$answer" = 'yes' ]; then
+    do_something
+else
+    do_something_else
+fi
+
+
 # if curl exists
 if [ -n "$(command -v "curl")" ]
 then
@@ -88,7 +107,8 @@ echo "double quote"
 echo double" quote connection"
 echo "double quote with escapes \""
 echo "double $dollar"
-echo "double subshell $(echo hi)"
+echo "double with subshell $(echo hi)"
+echo "double subshell $(echo "$(echo subsub)")"
 echo $dollar'connection'
 echo `backticks`
 echo "Greeting: ${greeting}"

@@ -8,11 +8,11 @@ import { zipLong } from 'https://esm.sh/gh/jeff-hykin/good-js@1.18.2.0/source/fl
 const parser = await createParser(bash) // path or Uint8Array
 
 // 1.0 goal:
-    // sub shells
-    // fixup args/env special env
-    // splats
+    // DONE: sub shells
+    // DONE: fixup args/env special env
+    // splats (might be fixed upstream soon)
     // OS checks
-    // handle "$@"
+    // DONE: handle "$@"
     // case 
     // DONE: basic redirection
     // DONE: chained pipeline
@@ -26,12 +26,13 @@ const parser = await createParser(bash) // path or Uint8Array
          // DONE: is directory
     // done: basic for loops
 // 2.0 goal:
-    // alias
+    // handle $?
+    // DONE: alias
     // set pipefail
     // bracket sub shell echo hi && { echo bye; } && echo final
     // env for specific command. E.g. `PATH=/bin echo`
-    // backticks
-    // has-command (which and $(command -v ))
+    // DONE: backticks
+    // DONE: has-command (which and $(command -v ))
     // function
     // heredocs
 // 3.0 goal:
@@ -351,7 +352,7 @@ export function translate(code) {
                 return fallbackTranslate({text:expr})
             }
 
-            const fallbackTranslate = (node)=>"////" + node.text.replace(/\n/g, "\n////")
+            const fallbackTranslate = (node)=>"// FIXME: " + node.text.replace(/\n/g, "\n////")
 
         // 
         // 
@@ -361,32 +362,42 @@ export function translate(code) {
         if (node.type == "program") {
             const contents = node.children.map(each=>translateInner(each, {topLevel:true})).join("")
             const imports = [
-                `import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"`,
+                `import { $, env, aliases, $stdout, $stderr, appendTo, overwrite, hasCommand } from "https://deno.land/x/quickr@0.8.11/main/dax_helpers.js"`,
+                `import fs from "node:fs"`,
             ]
-            const helpers = [
-                `const $$ = (...args)=>$(...args).noThrow()`,
-            ]
-            if (usedVars) {
-                imports.push(`import { env } from "https://deno.land/x/quickr@0.8.8/main/env.js"`)
-            }
-            if (usedStdout) {
-                helpers.push(`const $stdout = [ Deno.stdout.readable, {preventClose:true} ]`)
-            }
-            if (usedStderr) {
-                helpers.push(`const $stderr = [ Deno.stderr.readable, {preventClose:true} ]`)
-            }
-            if (usedAppend) {
-                helpers.push(`const appendTo = (pathString)=>$.path(pathString).openSync({ write: true, create: true, truncate: false })`)
-            }
-            if (usedOverwrite) {
-                helpers.push(`const overwrite = (pathString)=>$.path(pathString).openSync({ write: true, create: true })`)
-            }
-            if (usesHasCommand) {
-                helpers.push(`const hasCommand = (cmd)=>$.commandExistsSync(cmd)`)
-            }
-            if (usesFs) {
-                imports.push(`import fs from "node:fs"`)
-            }
+            const helpers = []
+            //     `const _$ = build$({commandBuilder: (builder) => builder.exportEnv().noThrow(), })`,
+            //     `const $ = (strings, ...args)=>{
+            //         strings = [...strings]
+            //         const firstWord = strings[0].trim().split(" ")[0]
+            //         if (firstWord.match(new RegExp("^("+Object.keys(aliases).sort().join("|")+")$"))) {
+            //             strings[0] = aliases[firstWord]
+            //         }
+            //         return _$(strings, ...args)
+            //     }`.replace(/\n                /g,"\n"),
+            //     `const aliases = {}`,
+            // ]
+            // if (usedVars) {
+            //     imports.push(`import { env } from "https://deno.land/x/quickr@0.8.10/main/env.js"`)
+            // }
+            // if (usedStdout) {
+            //     helpers.push(`const $stdout = [ Deno.stdout.readable, {preventClose:true} ]`)
+            // }
+            // if (usedStderr) {
+            //     helpers.push(`const $stderr = [ Deno.stderr.readable, {preventClose:true} ]`)
+            // }
+            // if (usedAppend) {
+            //     helpers.push(`const appendTo = (pathString)=>$.path(pathString).openSync({ write: true, create: true, truncate: false })`)
+            // }
+            // if (usedOverwrite) {
+            //     helpers.push(`const overwrite = (pathString)=>$.path(pathString).openSync({ write: true, create: true })`)
+            // }
+            // if (usesHasCommand) {
+            //     helpers.push(`const hasCommand = (cmd)=>$.commandExistsSync(cmd)`)
+            // }
+            // if (usesFs) {
+            //     imports.push(`import fs from "node:fs"`)
+            // }
             return imports.concat(helpers).join("\n")+"\n"+contents
         } else if (node.type == "$(" || node.type == ")" || node.type == "`") {
             return ""
@@ -454,16 +465,55 @@ export function translate(code) {
             // FIXME: command_name
             const commandNameNode = node.quickQueryFirst(`(command_name) @nameNode`).nameNode
             if (commandNameNode.text == "alias") {
-                // 
-                // alias
-                // 
-                // TODO: handle alias by shimming $ to check/substitute aliases before calling dax
-                return fallbackTranslate(node)
+                const aliasName = node.text.match(/^alias\s+(\w+)=/)[1]
+                const aliasValue = node.text.replace(/^alias\s+(\w+)=/,"")
+                return `aliases${escapeJsKeyAccess(aliasName)} = ${convertArgs(aliasValue, {asSingleString: true})}`
             } else if (commandNameNode.text == "set") {
                 // 
                 // set
                 // 
                 return fallbackTranslate(node)
+            } else if (commandNameNode.text == "continue") {
+                return `continue`
+            } else if (commandNameNode.text == "break") {
+                return `break`
+            } else if (commandNameNode.text == "read") {
+                const args = convertArgs(node.children, {asArray: true})
+                let numberedArgs = []
+                let skipNextArg = false
+                let envVarArg
+                let promptArg =  ""
+                for (let each of args) {
+                    if (["-d","-i","-n","-N","-p","-t","-u"].includes(each)) {
+                        skipNextArg = each
+                        continue
+                    }
+                    if (skipNextArg) {
+                        if (skipNextArg == "-p") {
+                            promptArg = each
+                        }
+                        skipNextArg = false
+                        continue
+                    }
+                    skipNextArg = false
+                    
+                    if (each.startsWith("-") && each.length == 2) {
+                        continue
+                    }
+                    envVarArg = each
+                }
+                return `env${escapeJsKeyAccess(envVarArg)} = prompt(${promptArg})`
+                // -a <array>	Assigns the provided word sequence to a variable named <array>.
+                // -d <delimiter>	Reads a line until the provided <delimiter> instead of a new line.
+                // -e	Starts an interactive shell session to obtain the line to read.
+                // -i <prefix>	Adds initial text before reading a line as a prefix.
+                // -n <number>	Returns after reading the specified number of characters while honoring the delimiter to terminate early.
+                // -N <number>	Returns after reading the specified number of chars, ignoring the delimiter.
+                // -p <prompt>	Outputs the prompt string before reading user input.
+                // -r	Disable backslashes to escape characters.
+                // -s	Does not echo the user's input.
+                // -t <time>	The command times out after the specified time in seconds.
+                // -u <file descriptor>	Read from file descriptor instead of standard input.
             } else if (commandNameNode.text == "echo" && topLevel) {
                 // slice gets rid of "echo "
                 // TODO: handle echo -n
@@ -479,7 +529,7 @@ export function translate(code) {
                 if (convertedArgs == null) {
                     return fallbackTranslate(node)
                 }
-                return  "await $$"+convertedArgs
+                return  "await $"+convertedArgs
             }
         // 
         // redirection
@@ -502,7 +552,8 @@ export function translate(code) {
             // </redirected_statement>
             const commandNode = node.children[0]
             // const inner = translateInner(commandNode).slice(8)
-            const inner = commandNode.type == "command" ? convertArgs(commandNode.children) : translateInner(commandNode).slice(8)
+            const length = "await $".length
+            const inner = commandNode.type == "command" ? convertArgs(commandNode.children) : translateInner(commandNode).slice(length)
             const redirects = node.quickQuery(`(file_redirect)`)
             const parseOutputRedirect = (redirectNode)=>{
                 const maybeFdNode = redirectNode.quickQueryFirst(`(file_descriptor)`)
@@ -604,9 +655,9 @@ export function translate(code) {
                     if (!redirect) {
                         return fallbackTranslate(node)
                     }
-                    return `await $$${convertedArgs}.stdout(${redirect.target}).stderr(${redirect.target})`
+                    return `await $${convertedArgs}.stdout(${redirect.target}).stderr(${redirect.target})`
                 }
-                return `await $$${convertedArgs.slice(0,-1)} ${redirects[0].text}\``
+                return `await $${convertedArgs.slice(0,-1)} ${redirects[0].text}\``
             } else {
                 let stdoutTarget
                 let stderrTarget
@@ -644,7 +695,7 @@ export function translate(code) {
                     stderrString = `.stderr(${stderrTarget})`
                 }
                 // convertArgs(commandNode.children)
-                return `await $$${inner.slice(0,-1)}\`${stdoutString}${stderrString}`
+                return `await $${inner.slice(0,-1)}\`${stdoutString}${stderrString}`
             }
         // 
         // pipes
@@ -678,10 +729,10 @@ export function translate(code) {
                 return fallbackTranslate(node)
             }
             // little bit hacky, cleanup later
-            const lastPart = lastCommandConverted.replace(/^await \$\$\`/,"")
+            const lastPart = lastCommandConverted.replace(/^await \$\`/,"")
             const coreCommand = [ ...otherCommandsConverted.map(each=>each.slice(1,-1)), lastPart ].join(" | ")
             inPipeline = false
-            return `await $$\`${coreCommand}`
+            return `await $\`${coreCommand}`
         // 
         // chaining
         // 
@@ -713,7 +764,7 @@ export function translate(code) {
                 const isLast = each == cmds.at(-1)
                 if (isLast) {
                     if (each.type == "redirected_statement") {
-                        const front = `await $$\``.length
+                        const front = `await $\``.length
                         const bad = fallbackTranslate(each)
                         const trans = translateInner(each)
                         if (bad == trans) {
@@ -739,7 +790,7 @@ export function translate(code) {
                 )
             }
 
-            return `await $$\`${escaped.join(" ")}`
+            return `await $\`${escaped.join(" ")}`
             // node.quickQueryFirst(`(command) @firstCommand`).firstCommand
             // return translateInner(node.children[0])
         // 
@@ -971,7 +1022,7 @@ export function translate(code) {
         // 
         } else if (node.type == "function_definition") {
             const prefixNodes = node.children.filter(each=>each.type != "compound_statement")
-            return `// FIXME: bash function: ${prefixNodes.map(each=>each.text).join("")}\nfunction ${prefixNodes.filter(each=>each.type=="word")[0].text}() ${translateInner(node.quickQueryFirst(`(compound_statement)`))}`
+            return `// FIXME: bash function: ${prefixNodes.map(each=>each.text).join("")}\nasync function ${prefixNodes.filter(each=>each.type=="word")[0].text}() ${translateInner(node.quickQueryFirst(`(compound_statement)`))}`
             return node.children.map(each=>translateInner(each, { topLevel: true })).join("")
         // 
         // couldn't translate

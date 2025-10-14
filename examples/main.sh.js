@@ -1,10 +1,5 @@
-import $ from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts"
-import { env } from "https://deno.land/x/quickr@0.8.8/main/env.js"
-const $$ = (...args)=>$(...args).noThrow()
-const $stderr = [ Deno.stderr.readable, {preventClose:true} ]
-const appendTo = (pathString)=>$.path(pathString).openSync({ write: true, create: true, truncate: false })
-const overwrite = (pathString)=>$.path(pathString).openSync({ write: true, create: true })
-const hasCommand = (cmd)=>$.commandExistsSync(cmd)
+import { $, env, aliases, $stdout, $stderr, appendTo, overwrite, hasCommand } from "https://deno.land/x/quickr@0.8.11/main/dax_helpers.js"
+import fs from "node:fs"
 
 
 // ========== VARIABLE ASSIGNMENT ==========
@@ -13,55 +8,79 @@ env.name = `Alice`
 env.app_version = `1.2.3`
 env.number = 42
 env.greeting = `Hello, ${env.name}!`
-env.file_count = await $$`ls | wc -l`.text()
+env.file_count = await $`ls | wc -l`.text()
 delete env.number
 
 // ========== SET OPTIONS ==========
-////set -euo pipefail  // Exit on error, undefined var is error, and pipe fails propagate
+// FIXME: set -euo pipefail  // Exit on error, undefined var is error, and pipe fails propagate
 
 // ========== FUNCTION DEFINITION ==========
 // FIXME: bash function: say_hello() 
-function say_hello() {
+async function say_hello() {
   env.who = env["1"]/* FIXME: 1:-World */  // Default parameter
-  await $$`echo 'Hello", ${env.who}!'`
+  await $`echo 'Hello", ${env.who}!'`
 }
 
 // ========== ALIASES ==========
-////alias ll='ls -lah'
-////alias greet='say_hello'
+aliases.ll = `ls -lah`
+aliases.greet = `say_hello`
 
 // ========== CONTROL FLOW ==========
 
 // IF-ELSE
 if ( env.name === `Alice`) { 
-  await $$`echo 'Hi Alice!'`
+  await $`echo 'Hi Alice!'`
 } else if ( env.name === `Bob`) { 
-  await $$`echo 'Hi Bob!'`
+  await $`echo 'Hi Bob!'`
 
 } else {
 
-  await $$`echo 'Who are you?'`
+  await $`echo 'Who are you?'`
 
 }
 
-console.log(`Are you sure?`);await $$`read ANSWER`;console.log(``)
+console.log(`Are you sure?`);env.ANSWER = prompt();console.log(``)
 if ( env.ANSWER.match(/^[Yy]/)) {
 
-    await $$`exit 1`
+    await $`exit 1`
 
 }
+
+env.question = `question? [y/n]`;env.answer = ``
+while (true) {
+
+    break;
+    continue;
+    console.log(`${env.question}`); env.response = prompt()
+    // FIXME: case "$response" in
+////        [Yy]* ) answer='yes'; break;;
+////        [Nn]* ) answer='no'; break;;
+////        * ) echo "Please answer yes or no.";;
+////    esac
+
+}
+
+if ( env.answer === `yes`) { 
+    await $`do_something`
+
+} else {
+
+    await $`do_something_else`
+
+}
+
 
 // if curl exists
 if (  hasCommand(`curl`)) {
 
-    await $$`curl -s 'https://example.com'`
+    await $`curl -s 'https://example.com'`
 
 }
 
 // if name_of_command doesnt exist
 if ( ! hasCommand(`name_of_command`)) {
 
-    await $$`':' hji`
+    await $`':' hji`
 
 }
 
@@ -107,9 +126,10 @@ console.log(`double quote`)
 console.log(`double quote connection`)
 console.log(`double quote with escapes "`)
 console.log(`double ${env.dollar}`)
-console.log(`double subshell ${await $$`echo hi`.text()}`)
+console.log(`double with subshell ${await $`echo hi`.text()}`)
+console.log(`double subshell ${await $`echo '${await $`echo subsub`.text()}'`.text()}`)
 console.log(`${env.dollar}connection`)
-console.log(`${await $$`backticks`.text()}`)
+console.log(`${await $`backticks`.text()}`)
 console.log(`Greeting: ${env.greeting}`)
 console.log(`Greeting upper: ${env.greeting.toUpperCase()}`)      // Uppercase
 console.log(`Greeting length: ${env.greeting.length}`)      // Length
@@ -121,47 +141,47 @@ console.log(`Extension: ${env.filename/* FIXME: filename##*. */}`)         // Re
 // ========== REDIRECTS ==========
 
 console.log(`User processes:`)
-await $$`ps aux`
-await $$`ps aux > /dev/null`
-await $$`ps aux`.stdout("null").stderr("null")
-await $$`ps aux`.stdout("null").stderr("null")
-await $$`ps aux`.stdout(appendTo(`./somefile`)).stderr(appendTo(`./somefile`))
-await $$`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
-await $$`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
-await $$`ps aux`.stdout(...$stderr).stderr(...$stderr)
-////tar -cf >(ssh remote_server tar xf -) .
-await $$`ls somefile thatdoesnotexist`.stdout("null").stderr(overwrite(`err`))
+await $`ps aux`
+await $`ps aux > /dev/null`
+await $`ps aux`.stdout("null").stderr("null")
+await $`ps aux`.stdout("null").stderr("null")
+await $`ps aux`.stdout(appendTo(`./somefile`)).stderr(appendTo(`./somefile`))
+await $`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
+await $`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
+await $`ps aux`.stdout(...$stderr).stderr(...$stderr)
+// FIXME: tar -cf >(ssh remote_server tar xf -) .
+await $`ls somefile thatdoesnotexist`.stdout("null").stderr(overwrite(`err`))
 
 // ========== PIPES ==========
-await $$`ps aux | grep '${env.USER}'`
-await $$`ps aux | echo '${env.USER}'`
-await $$`echo aux | echo '${env.USER}'`
+await $`ps aux | grep '${env.USER}'`
+await $`ps aux | echo '${env.USER}'`
+await $`echo aux | echo '${env.USER}'`
 // alsdkjfasdj
-await $$`ps aux | grep '${env.USER}' | grep -v 'double pipe'`;
+await $`ps aux | grep '${env.USER}' | grep -v 'double pipe'`;
 // alsdkjfasdj
-await $$`ps aux | grep '${env.USER}' | grep -v 'double pipe and' > /dev/null`;
+await $`ps aux | grep '${env.USER}' | grep -v 'double pipe and' > /dev/null`;
 // hi
-////ps aux &>/dev/null | grep "$USER";
-////ps aux 1>&2 2>/dev/null | grep "$USER";
-await $$`ps aux | grep '${env.USER}' | grep -v grep`;
+// FIXME: ps aux &>/dev/null | grep "$USER";
+// FIXME: ps aux 1>&2 2>/dev/null | grep "$USER";
+await $`ps aux | grep '${env.USER}' | grep -v grep`;
 // TODO: tree-sitter parser doesn't like this part without semicolons for some reason
-////cat <<< 'hello';
-////diff <(ls dir1) <(ls dir2);
-////paste <(ls dir1) <(ls dir2);
+// FIXME: cat <<< 'hello';
+// FIXME: diff <(ls dir1) <(ls dir2);
+// FIXME: paste <(ls dir1) <(ls dir2);
 
 // ========== CHAINING ==========
-await $$`mkdir -p '/tmp/demo' || echo hi`
-await $$`mkdir -p '/tmp/demo' && echo 'Created demo dir' && echo 'Created demo dir' && echo 'Created demo dir'`
-await $$`mkdir -p '/tmp/demo' && echo 'Created demo dir' || echo 'Failed to create dir'`
-await $$`mkdir -p '/tmp/demo' && echo 'Created demo dir' || echo 'Created demo dir' && echo 'Created demo dir'`
+await $`mkdir -p '/tmp/demo' || echo hi`
+await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' && echo 'Created demo dir' && echo 'Created demo dir'`
+await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' || echo 'Failed to create dir'`
+await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' || echo 'Created demo dir' && echo 'Created demo dir'`
 
 // ========== ESCAPING ==========
 
 console.log(`This is a quote: " and this is a backslash: \\`)
 
 // ========== CALL FUNCTION ==========
-await $$`say_hello '${env.name}'`
-await $$`greet Bob`
+await $`say_hello '${env.name}'`
+await $`greet Bob`
 
 // ========== END ==========
 console.log(`Script completed successfully!`)

@@ -362,6 +362,199 @@
         <fi text="fi" />
     </if_statement>
     <whitespace text="\n\n" />
+    <variable_assignment>
+        <variable_name text="question" />
+        <"=" text="=" />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="question? [y/n]" />
+            <"\"" text="\"" />
+        </string>
+    </variable_assignment>
+    <";" text=";" />
+    <variable_assignment>
+        <variable_name text="answer" />
+        <"=" text="=" />
+        <raw_string text="''" />
+    </variable_assignment>
+    <whitespace text="\n" />
+    <while_statement>
+        <while text="while" />
+        <whitespace text=" " />
+        <command>
+            <command_name>
+                <word text="true" />
+            </command_name>
+        </command>
+        <";" text=";" />
+        <whitespace text=" " />
+        <do_group>
+            <do text="do" />
+            <whitespace text="\n    " />
+            <command>
+                <command_name>
+                    <word text="break" />
+                </command_name>
+            </command>
+            <";" text=";" />
+            <whitespace text="\n    " />
+            <command>
+                <command_name>
+                    <word text="continue" />
+                </command_name>
+            </command>
+            <";" text=";" />
+            <whitespace text="\n    " />
+            <command>
+                <command_name>
+                    <word text="echo" />
+                </command_name>
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <simple_expansion>
+                        <"$" text="$" />
+                        <variable_name text="question" />
+                    </simple_expansion>
+                    <"\"" text="\"" />
+                </string>
+            </command>
+            <";" text=";" />
+            <whitespace text=" " />
+            <command>
+                <command_name>
+                    <word text="read" />
+                </command_name>
+                <whitespace text=" " />
+                <word text="response" />
+            </command>
+            <whitespace text="\n    " />
+            <case_statement>
+                <case text="case" />
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <simple_expansion>
+                        <"$" text="$" />
+                        <variable_name text="response" />
+                    </simple_expansion>
+                    <"\"" text="\"" />
+                </string>
+                <whitespace text=" " />
+                <in text="in" />
+                <whitespace text="\n        " />
+                <case_item>
+                    <extglob_pattern text="[Yy]*" />
+                    <whitespace text=" " />
+                    <")" text=")" />
+                    <whitespace text=" " />
+                    <variable_assignment>
+                        <variable_name text="answer" />
+                        <"=" text="=" />
+                        <raw_string text="'yes'" />
+                    </variable_assignment>
+                    <";" text=";" />
+                    <whitespace text=" " />
+                    <command>
+                        <command_name>
+                            <word text="break" />
+                        </command_name>
+                    </command>
+                    <";;" text=";;" />
+                </case_item>
+                <whitespace text="\n        " />
+                <case_item>
+                    <extglob_pattern text="[Nn]*" />
+                    <whitespace text=" " />
+                    <")" text=")" />
+                    <whitespace text=" " />
+                    <variable_assignment>
+                        <variable_name text="answer" />
+                        <"=" text="=" />
+                        <raw_string text="'no'" />
+                    </variable_assignment>
+                    <";" text=";" />
+                    <whitespace text=" " />
+                    <command>
+                        <command_name>
+                            <word text="break" />
+                        </command_name>
+                    </command>
+                    <";;" text=";;" />
+                </case_item>
+                <whitespace text="\n        " />
+                <case_item>
+                    <extglob_pattern text="*" />
+                    <whitespace text=" " />
+                    <")" text=")" />
+                    <whitespace text=" " />
+                    <command>
+                        <command_name>
+                            <word text="echo" />
+                        </command_name>
+                        <whitespace text=" " />
+                        <string>
+                            <"\"" text="\"" />
+                            <string_content text="Please answer yes or no." />
+                            <"\"" text="\"" />
+                        </string>
+                    </command>
+                    <";;" text=";;" />
+                </case_item>
+                <whitespace text="\n    " />
+                <esac text="esac" />
+            </case_statement>
+            <whitespace text="\n" />
+            <done text="done" />
+        </do_group>
+    </while_statement>
+    <whitespace text="\n\n" />
+    <if_statement>
+        <if text="if" />
+        <whitespace text=" " />
+        <test_command>
+            <"[" text="[" />
+            <whitespace text=" " />
+            <binary_expression>
+                <string>
+                    <"\"" text="\"" />
+                    <simple_expansion>
+                        <"$" text="$" />
+                        <variable_name text="answer" />
+                    </simple_expansion>
+                    <"\"" text="\"" />
+                </string>
+                <whitespace text=" " />
+                <"=" text="=" />
+                <whitespace text=" " />
+                <raw_string text="'yes'" />
+            </binary_expression>
+            <whitespace text=" " />
+            <"]" text="]" />
+        </test_command>
+        <";" text=";" />
+        <whitespace text=" " />
+        <then text="then" />
+        <whitespace text="\n    " />
+        <command>
+            <command_name>
+                <word text="do_something" />
+            </command_name>
+        </command>
+        <whitespace text="\n" />
+        <else_clause>
+            <else text="else" />
+            <whitespace text="\n    " />
+            <command>
+                <command_name>
+                    <word text="do_something_else" />
+                </command_name>
+            </command>
+            <whitespace text="\n" />
+        </else_clause>
+        <fi text="fi" />
+    </if_statement>
+    <whitespace text="\n\n\n" />
     <comment text="# if curl exists" />
     <whitespace text="\n" />
     <if_statement>
@@ -804,7 +997,7 @@
         <whitespace text=" " />
         <string>
             <"\"" text="\"" />
-            <string_content text="double subshell " />
+            <string_content text="double with subshell " />
             <command_substitution>
                 <"$(" text="$(" />
                 <command>
@@ -813,6 +1006,43 @@
                     </command_name>
                     <whitespace text=" " />
                     <word text="hi" />
+                </command>
+                <")" text=")" />
+            </command_substitution>
+            <"\"" text="\"" />
+        </string>
+    </command>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <string>
+            <"\"" text="\"" />
+            <string_content text="double subshell " />
+            <command_substitution>
+                <"$(" text="$(" />
+                <command>
+                    <command_name>
+                        <word text="echo" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <command_substitution>
+                            <"$(" text="$(" />
+                            <command>
+                                <command_name>
+                                    <word text="echo" />
+                                </command_name>
+                                <whitespace text=" " />
+                                <word text="subsub" />
+                            </command>
+                            <")" text=")" />
+                        </command_substitution>
+                        <"\"" text="\"" />
+                    </string>
                 </command>
                 <")" text=")" />
             </command_substitution>
