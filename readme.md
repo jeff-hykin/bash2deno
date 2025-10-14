@@ -6,12 +6,12 @@ Make your Bash scripts easier to read, cross-platform, and faster by automatical
 
 ## How to Use
 
-There's an online version here: https://jeff-hykin.github.io/shell_convert/
+There's an online version here: https://jeff-hykin.github.io/bash2deno/
 
 You can also run it programmatically:
 
 ```js
-import { translate } from "https://esm.sh/gh/jeff-hykin/shell_convert@1.0.0/main/api.js"
+import { translate } from "https://esm.sh/gh/jeff-hykin/bash2deno@1.0.0/main/api.js"
 let code = translate(`echo "Hello World!"`)
 ```
 
