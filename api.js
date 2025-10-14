@@ -955,6 +955,9 @@ export function translate(code) {
                 nodes.push(each)
             }
             const whilePart = nodes.map(each=>each.text).join("")
+            if (whilePart.match(/^while\s+true\s*;?\s*$/)) {
+                front = `while (true) `
+            }
             front = front || fallbackTranslate({text:whilePart})
             // let match = whilePart.match(/^while\s+(.+?)\s+in\s+(.+?)\s*;?\s*$/)
             return front + "{\n" + translateInner(node.quickQueryFirst(`(do_group)`), { topLevel: true })
