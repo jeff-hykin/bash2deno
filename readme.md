@@ -55,3 +55,4 @@ While most bash code will work, there are a few things that are not currently su
 - Bash Arrays
 - Advanced parameter expansion
 - set pipefail
+- source
