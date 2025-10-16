@@ -2042,3 +2042,6 @@ clean_exit
 # End:
 
 # vim: et sts=4 sw=4
+
+
+HOME="./other" echo "hi"; something "else"
