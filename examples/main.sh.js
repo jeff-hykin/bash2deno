@@ -1,7 +1,6 @@
 import fs from "node:fs"
 import * as dax from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts" // see: https://github.com/dsherret/dax
-// import { env, aliases, $stdout, $stderr, initHelpers } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"
-import { env, aliases, $stdout, $stderr, initHelpers } from "../helpers.js"
+import { env, aliases, $stdout, $stderr, initHelpers } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"
 const { $, appendTo, overwrite, hasCommand, makeScope, settings } = initHelpers({ dax })
 
 
@@ -34,10 +33,9 @@ await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' && echo 'Created demo di
 
 // ========== CONTROL FLOW ==========
 
-console.log(`Are you sure?`);env.ANSWER = prompt();console.log(``)
-if ( env.ANSWER.match(/^[Yy]/)) {
+console.log(`Are you sure?`);env.ANSWER = prompt() ;console.log(``)
+if (env.ANSWER.match(/^[Yy]/)) {
     await $`exit 1`
-
 }
 
 for (env.arg of Deno.args) {
@@ -56,15 +54,12 @@ while (env.counter < 3) {
 }
 
 // IF-ELSE
-if ( env.name === `Alice`) {
+if (env.name === `Alice`) {
   console.log(`Hi Alice!`)
-} else if ( env.name === `Bob`) {
+} else if (env.name === `Bob`) {
   console.log(`Hi Bob!`)
-
 } else {
-
   console.log(`Who are you?`)
-
 }
 
 env.question = `question? [y/n]`;env.answer = ``
@@ -72,37 +67,30 @@ while (true) {
 
     break;
     continue;
-    console.log(`${env.question}`); env.response = prompt()
+    console.log(`${env.question}`); env.response = prompt() 
     /* FIXME: case "$response" in
         [Yy]* ) answer='yes'; break;;
         [Nn]* ) answer='no'; break;;
         * ) echo "Please answer yes or no.";;
-    esac */
+    esac */0
 
 }
 
-if ( env.answer === `yes`) {
+if (env.answer === `yes`) {
     await $`do_something`
-
 } else {
-
     await $`do_something_else`
-
 }
 
 
 // if curl exists
-if (  hasCommand(`curl`)
-) {
+if ( hasCommand(`curl`)) {
     await $`curl -s 'https://example.com'`
-
 }
 
 // if name_of_command doesnt exist
-if ( ! hasCommand(`name_of_command`)
-) {
+if (! hasCommand(`name_of_command`)) {
     await $`':' hji`
-
 }
 
 // FOR LOOP
@@ -169,7 +157,7 @@ await $`ps aux`.stdout(appendTo(`./somefile`)).stderr(appendTo(`./somefile`))
 await $`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
 await $`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
 await $`ps aux`.stdout("null")
-/* FIXME: tar -cf >(ssh remote_server tar xf -) . */
+/* FIXME: tar -cf >(ssh remote_server tar xf -) . */0
 await $`ls somefile thatdoesnotexist`.stdout(overwrite(`err`))
 
 // ========== PIPES ==========
@@ -181,13 +169,13 @@ await $`ps aux | grep '${env.USER}' | grep -v 'double pipe'`;
 // alsdkjfasdj
 await $`ps aux | grep '${env.USER}' | grep -v 'double pipe and' > /dev/null`;
 // hi
-/* FIXME: ps aux &>/dev/null | grep "$USER" */;
-/* FIXME: ps aux 1>&2 2>/dev/null | grep "$USER" */;
+/* FIXME: ps aux &>/dev/null | grep "$USER" */0;
+/* FIXME: ps aux 1>&2 2>/dev/null | grep "$USER" */0;
 await $`ps aux | grep '${env.USER}' | grep -v grep`;
 // TODO: tree-sitter parser doesn't like this part without semicolons for some reason
-/* FIXME: cat <<< 'hello' */;
-/* FIXME: diff <(ls dir1) <(ls dir2) */;
-/* FIXME: paste <(ls dir1) <(ls dir2) */;
+/* FIXME: cat <<< 'hello' */0;
+/* FIXME: diff <(ls dir1) <(ls dir2) */0;
+/* FIXME: paste <(ls dir1) <(ls dir2) */0;
 
 // ========== CHAINING ==========
 await $`mkdir -p '/tmp/demo' || echo hi`
@@ -207,7 +195,7 @@ await $`greet Bob`
 console.log(`Script completed successfully!`)
 
 // ========== SET OPTIONS ==========
-/* FIXME: set -euo pipefail */  // Exit on error, undefined var is error, and pipe fails propagate
+/* FIXME: set -euo pipefail */0  // Exit on error, undefined var is error, and pipe fails propagate
 
 // ========== FUNCTION DEFINITION ==========
 // FIXME: you'll need to custom verify this function usage: say_hello

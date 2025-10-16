@@ -29,10 +29,13 @@ const parser = await createParser(bash) // path or Uint8Array
     // OS checks
     // case 
     // functions
+        // local vars
+        // return values
         // set/use exitCodeOfLastChildProcess
     // basic $?
     // unalias
     // heredocs
+    // exec
 // 2.0 goal:
     // while read line; do
     // process_substitution
@@ -62,6 +65,9 @@ const asCachedGetters = (obj)=>{
         }
     }
     return obj
+}
+const escapeComment = (str)=>{
+    return str.replace(/\*\//g, "* /")
 }
 
 export function translate(code, { withHeader=true }={}) {
@@ -103,7 +109,7 @@ export function translate(code, { withHeader=true }={}) {
             return text.replace(/\$?\{?\w+\}?/g,(matchString)=>accessEnvVar(matchString))
         }
 
-        const fallbackTranslate = (node)=>"/* FIXME: " + node.text.replace(/\*\//g, "* /") + " */"
+        const fallbackTranslate = (node)=>"/* FIXME: " + escapeComment(node.text) + " */0"
 
         function convertArg(node, {context}={}) {
             // possible:
@@ -131,9 +137,7 @@ export function translate(code, { withHeader=true }={}) {
             } else if (node.type == "array") {
                 return convertArgs(node.children.filter(each=>each.type!="("&&each.type!=")"), {asArrayString: context=="variable_assignment"} )
             } else if (node.type == "command_substitution") {
-                const out = ()=>`\${${node.children.map(translateInner).join("")}.text()}`
-                out.toString = out
-                return out
+                return `\${${node.children.map(translateInner).join("")}.text()}`
             } else if (node.type == "arithmetic_expansion") {
                 return `\${${translateDoubleParensContent(node.text.slice(3,-2))}}`
             } else if (node.type == "raw_string") {
@@ -177,7 +181,7 @@ export function translate(code, { withHeader=true }={}) {
                     output = `${varEscaped}.toUpperCase()`
                 // } else if (operation.trim().startsWith("-")) {
                 } else {
-                    output = `${varEscaped}/* FIXME: ${debugReference} */`
+                    output = `${varEscaped}/* FIXME: ${escapeComment(debugReference)} */`
                 }
                 return `\${${output}}`
             // TODO: remove this once the bash parser is fixed: https://github.com/tree-sitter/tree-sitter-bash/issues/306
@@ -425,7 +429,7 @@ export function translate(code, { withHeader=true }={}) {
         try {
             // this is a way of making sure context is passed down by default
             const translateInner = translateSelfCallHelper
-            const statementContexts = ["program", "do_group", "function_definition"]
+            const statementContexts = ["program", "do_group", "function_definition", "if_consequence"]
             let usedLocalEnvVars = false
             if (node.type == "program") {
                 const contents = node.children.map(each=>translateInner(each, {context:"program"})).join("")
@@ -533,7 +537,14 @@ export function translate(code, { withHeader=true }={}) {
                     // 
                     return fallbackTranslate(node)
                 } else if (commandNameNode.text == "return") {
-                    return `return exitCodeOfLastChildProcess = ${node.text.replace(/^return\s*/,"")}`
+                    const returnValue = node.text.replace(/^return\s*/,"")
+                    if (returnValue.match(/"?\$\?"?/)) {
+                        return `return exitCodeOfLastChildProcess`
+                    } else if (returnValue.match(/^\d+$/)) {
+                        return `return exitCodeOfLastChildProcess = ${returnValue}`
+                    } else {
+                        return `return exitCodeOfLastChildProcess = ${convertArgs(argNodes, {asSingleString: true})}`
+                    }
                 } else if (commandNameNode.text == "continue") {
                     return `continue`
                 } else if (commandNameNode.text == "break") {
@@ -544,6 +555,7 @@ export function translate(code, { withHeader=true }={}) {
                     let skipNextArg = false
                     let envVarArg
                     let promptArg =  ""
+                    let warning = ""
                     for (let each of args) {
                         if (["-d","-i","-n","-N","-p","-t","-u"].includes(each)) {
                             skipNextArg = each
@@ -552,6 +564,9 @@ export function translate(code, { withHeader=true }={}) {
                         if (skipNextArg) {
                             if (skipNextArg == "-p") {
                                 promptArg = each
+                            }
+                            if (skipNextArg == "-u") {
+                                warning = ` /* FIXME: this was a read from ${escapeComment(each)}, (e.g. ${escapeComment(JSON.stringify(args))}) but I'm only able to translate reading from stdin */`
                             }
                             skipNextArg = false
                             continue
@@ -563,7 +578,7 @@ export function translate(code, { withHeader=true }={}) {
                         }
                         envVarArg = each
                     }
-                    return `env${escapeJsKeyAccess(envVarArg)} = prompt(${promptArg})`
+                    return `env${escapeJsKeyAccess(envVarArg)} = prompt(${promptArg})${warning}`
                     // -a <array>	Assigns the provided word sequence to a variable named <array>.
                     // -d <delimiter>	Reads a line until the provided <delimiter> instead of a new line.
                     // -e	Starts an interactive shell session to obtain the line to read.
@@ -832,11 +847,7 @@ export function translate(code, { withHeader=true }={}) {
                         if (match=node.text.match(/^(\[\[? .+ \]?\])\s+(\&\&|\|\|)((?:[^a]|a)+)/)) {
                             const negateString = match[2] == "&&" ? "" : " ! "
                             // convert to if statement so that things like "[[ ]] && break" work (otherwise the break will fail)
-                            return translateInner(parser.parse(`
-                                if ${negateString} ${match[1]}; then
-                                    ${match[3]}
-                                fi
-                            `, {context: "list"}).rootNode.quickQueryFirst(`(if_statement)`))
+                            return translateInner(parser.parse(`\n${node.indent}if ${negateString} ${match[1]}; then\n${node.indent}    ${match[3]}\n${node.indent}fi\n`, {context: "list"}).rootNode.quickQueryFirst(`(if_statement)`))
                         } else {
                             console.warn(`[list] unsupported list:`,node.text)
                         }
@@ -915,8 +926,127 @@ export function translate(code, { withHeader=true }={}) {
                 }
                 return convertBashTestToJS(node.text)
             } else if (node.type == "if_statement") {
+                let chunks = []
+                let conditionNodes = []
+                let consequenceNodes = []
+                const trimFluff = (nodes)=>{
+                    while (nodes.at(-1)?.type == "whitespace" || nodes.at(-1)?.type == ";") {
+                        nodes.pop()
+                    }
+                    while (nodes.at(0)?.type == "whitespace") {
+                        nodes.shift()
+                    }
+                    return nodes
+                }
+                const nodes = []
+                let sawIf = false
+                let sawThen = false
+                let sawEndOfThen = false
+                let justSawIf = false
+                for (let each of node.children) {
+                    if (each.type == "if") {
+                        sawIf = true
+                        justSawIf = true
+                        continue
+                    }
+                    if (each.type == "then") {
+                        sawThen = true
+                        trimFluff(conditionNodes)
+                        let condition = conditionNodes.map(each=>translateInner(each, {context:"if_condition"})).join("")
+                        // // if its all commented out
+                        // if (condition.match(/\s*\/(\*|\/)\s*FIXME([^\/]|(?<!\*)\/)+\*\/\s*$/)) {
+                        //     condition = null
+                        // }
+                        chunks.push(
+                            `if (${condition}) {\n`
+                        )
+                        continue
+                    }
+                    if (justSawIf) {
+                        if (each.type == "whitespace") {
+                            continue
+                        } else {
+                            justSawIf = false
+                        }
+                    }
+
+                    if (each.type == "elif_clause" || each.type == "else_clause" || each.type == "fi") {
+                        if (!sawEndOfThen) {
+                            trimFluff(consequenceNodes)
+                            let consequence = consequenceNodes.map(each=>translateInner(each, {context:"if_consequence"})).join("")
+                            chunks.push(
+                                consequenceNodes[0].indent + consequence
+                            )
+                            sawEndOfThen = true
+                        }
+                        if (each.type == "fi") {
+                            chunks.push(
+                                `\n${node.indent}}`
+                            )
+                            break
+                        }
+                    }
+
+                    if (sawIf && !sawThen) {
+                        conditionNodes.push(each)
+                    } else if (sawThen && !sawEndOfThen) {
+                        consequenceNodes.push(each)
+                    } else {
+                        const clauseNode = each
+                        if (each.type == "elif_clause") {
+                            conditionNodes = []
+                            consequenceNodes = []
+                            let sawIf = false
+                            let sawThen = false
+                            let justSawIf = false
+                            for (let each of clauseNode.children) {
+                                if (each.type == "elif") {
+                                    sawIf = true
+                                    justSawIf = true
+                                    continue
+                                }
+                                if (each.type == "then") {
+                                    sawThen = true
+                                    trimFluff(conditionNodes)
+                                    let condition = conditionNodes.map(each=>translateInner(each, {context:"if_condition"})).join("")
+                                    chunks.push(
+                                        `\n${node.indent}} else if (${condition}) {\n`
+                                    )
+                                    continue
+                                }
+                                if (justSawIf) {
+                                    if (each.type == "whitespace") {
+                                        continue
+                                    } else {
+                                        justSawIf = false
+                                    }
+                                }
+                                if (sawIf && !sawThen) {
+                                    conditionNodes.push(each)
+                                } else if (sawThen) {
+                                    consequenceNodes.push(each)
+                                }
+                            }
+                            trimFluff(consequenceNodes)
+                            let consequence = consequenceNodes.map(each=>translateInner(each, {context:"if_consequence"})).join("")
+                            chunks.push(
+                                consequenceNodes[0].indent + consequence
+                            )
+                        } else if (each.type == "else_clause") {
+                            chunks.push(`\n${node.indent}} else {\n`)
+                            consequenceNodes = clauseNode.children.slice(1)
+                            trimFluff(consequenceNodes)
+                            let consequence = consequenceNodes.map(each=>translateInner(each, {context:"if_consequence"})).join("")
+                            chunks.push(
+                                consequenceNodes[0].indent + consequence
+                            )
+                        }
+                    }
+                }
+                return chunks.join("")
                 // FIXME: handle the semicolon that can appear before the then
-                return node.children.map(translateInner).join("").replace(/\s*;\s*\)\s+\{;?/g, ") {")
+                // return node.children.map(translateInner).join("").replace(/\s*;\s*\)\s+\{;?/g, ") {")
+
                 // let condition1 = []
                 // let consequence1 = []
                 // let others = []
@@ -1082,11 +1212,14 @@ export function translate(code, { withHeader=true }={}) {
                 } else if (match = forPart.match(/^for\s+\(\((.+;.+;.+)\)\)\s*/)) {
                     front = `for (${translateDoubleParensContent(match[1], "for")}) `
                 // for i in {1..3};
+                // for x in $(seq 1 $(ulimit -n));
                 } else if (match = forPart.match(/^for\s+(.+?)\s+in\s+(.+?)\s*;?\s*$/)) {
                     const [, varName, inExpr] = match
                     if (inExpr.match(/^{(\d+)\.\.(\d+)}$/)) {
                         const [ , start, end ] = inExpr.match(/^{(\d+)\.\.(\d+)}$/)
                         front = `for (${accessEnvVar(varName)} = ${start}; ${accessEnvVar(varName)} <= ${end}; ${accessEnvVar(varName)}++) `
+                    } else {
+                        front = `for (${accessEnvVar(varName)} of (${convertArgs(inExpr, { asSingleString: true })}).split(/\s+/g)) `
                     }
                 }
                 // TODO: for loops that use brackets instead of "do ... done"
