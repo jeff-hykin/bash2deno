@@ -367,12 +367,13 @@ export function initHelpers({ dax, iDontNeedDollarQuestionMark=false }) {
     const overwrite = (pathString)=>dax.$.path(pathString).openSync({ write: true, create: true })
     const hasCommand = (cmd)=>dax.$.commandExistsSync(cmd)
 
-    return { 
+    return {
         $,
         appendTo,
         overwrite,
         hasCommand,
         makeScope,
         settings,
+        exitCodeOfLastChildProcess,
     }
 }
