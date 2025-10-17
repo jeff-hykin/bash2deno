@@ -26,7 +26,6 @@
 </body>
 <script src="./main.js"></script>
 <script type="module">
-#!/usr/bin/env -S deno run --allow-all
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __esm = (fn, res) => function __init() {
@@ -13772,8 +13771,12 @@ function escapeJsKeyAccess(key) {
 export {
   translate
 };
+let code
 setInterval(() => {
-    document.getElementById("code_output").value = translate(document.getElementById("code").value).jsCode
+    if (code!=document.getElementById("code").value) {
+        code = document.getElementById("code").value 
+        document.getElementById("code_output").value = translate(code).jsCode
+    }
 }, 100)
 </script>
 </html>
