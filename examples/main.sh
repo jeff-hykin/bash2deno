@@ -14,7 +14,9 @@ alias ll='ls -lah'
 alias greet='say_hello'
 
 # ========== redirect/pipes/chaining ==========
-
+echo hi{1..3}
+echo hi{1..$number} # not a real range in bash (only in zsh)
+echo hi{1..$(echo "$number")} # not a real range in bash (only in zsh)
 echo "double with subshell $(echo hi)"
 echo "double subshell $(echo "$(echo subsub)")"
 echo $dollar'connection'

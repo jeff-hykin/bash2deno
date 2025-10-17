@@ -68,8 +68,370 @@ const asCachedGetters = (obj)=>{
     }
     return obj
 }
+
 const escapeComment = (str)=>{
     return str.replace(/\*\//g, "* /")
+}
+
+const validAsUnquotedDaxArgNoInterpolation = (str)=>{
+    return str.match(/^([\w\d+\-_\.]|"'")+$/)
+}
+const callMaybe = (fn)=>typeof fn === "function" ? fn() : fn
+const multiply = ({argParts, items, id}) => {
+    return items.values.map(
+        multiplierValue=>
+            argParts.map(eachPart=>{
+                if (eachPart == id) {
+                    return multiplierValue
+                } else {
+                    return eachPart
+                }
+            })
+    )
+}
+
+const rangeToArray = (rangeString)=>{
+    rangeString = rangeString.slice(1,-1)
+    // "{apple,orange,lemon}"
+    // "{1..3}"
+    // not allowed: "{1..$thing}"
+    // not allowed: "{1..$(echo "5")}"
+    let match
+    if (rangeString.includes(",")) {
+        return rangeString.split(",")
+    } else if (match=rangeString.match(/(\d+)\.\.(\d+)/)) {
+        let output = []
+        for (let i=match[1]-0; i<=match[2]-0; i++) {
+            output.push(`${i}`)
+        }
+        return output
+    } else {
+        return [`{${rangeString}}`]
+    }
+}
+
+/**
+ * this just creates an array of arrays of nodes. Its a list of arguments
+ */
+const argAccumulator = (nodes) => {
+    let currentArg = []
+    let createNewArg = true // this is to handle annoying edge cases by lazily creating new args
+    let escapedNewline = false
+    const args = []
+    for (const eachNode of nodes) {
+        // 
+        // find argument splitter
+        // 
+        if (eachNode.type == "text" && eachNode.text == "\\") {
+            escapedNewline = true
+            continue
+        }
+        if (eachNode.type == "whitespace") {
+            // concat case. Note if whitespace is "\n   " (not just "\n") then it does split arguments
+            if (escapedNewline && eachNode.text == "\n") {
+                continue
+            }
+            // next argument
+            createNewArg = true
+            continue
+        }
+        escapedNewline = false
+        
+        if (createNewArg) {
+            createNewArg = false
+            currentArg = []
+            args.push(currentArg)
+        }
+        currentArg.push(eachNode)
+    }
+
+    return args
+}
+
+const autofillOutputForms = (output)=>{
+    if (output instanceof Array) {
+        return output
+    }
+    if (output == null) {
+        return null
+    }
+    if (typeof output === "string") {
+        output = { asJsStatement: output }
+    }
+    // form
+    let {
+        // the output only need to be one or two of these, everything else will get autofilled
+        asDaxArgUnquoted,
+        asDaxArgSingleQuoteInnards,
+        asDaxCommandInnardsPure,
+        asDaxCommandInnardsRedirected,
+        asDaxCommandInnardsChained,
+        asDaxCallNoPostfix,
+        asDaxCallRedirected,
+        asDaxCallToString,
+        asDaxCallSuccess,
+        asDaxCallFail,
+        asJsBacktickStringInnards,
+        asJsBacktickString,
+        asJsStringValue,
+        asJsArray,
+        asJsNumber,
+        asJsValue,
+        asJsConditional,
+        asNegatedJsConditional,
+        asJsStatement,
+        ...other
+    } = output
+    let match
+    let finalOutput = asCachedGetters({
+        asDaxArgUnquoted,
+        asDaxArgSingleQuoteInnards,
+        asDaxSingleQuoted: ()=>asDaxArgSingleQuoteInnards??`'${asDaxArgSingleQuoteInnards}'`,
+        asDaxCommandInnardsPure: asDaxCommandInnardsPure,
+        asDaxCommandInnardsRedirected: asDaxCommandInnardsRedirected??(()=>finalOutput.asDaxCommandInnardsPure),
+        asDaxCommandInnardsChained: asDaxCommandInnardsChained??(()=>finalOutput.asDaxCommandInnardsRedirected),
+        asDaxCallNoPostfix: asDaxCallNoPostfix??(()=>(finalOutput.asDaxCommandInnardsChained&&`await $\`${finalOutput.asDaxCommandInnardsChained}\``)),
+        asDaxCallRedirected: asDaxCallRedirected??(()=>finalOutput.asDaxCallNoPostfix),
+        asDaxCallToString: asDaxCallToString??(()=>(finalOutput.asDaxCallNoPostfix && `${finalOutput.asDaxCallNoPostfix}.text()`)),
+        asDaxCallToSub: asDaxCallToString??(()=>{
+            if (finalOutput.asDaxCommandInnardsChained) {
+                return `await $.str\`${finalOutput.asDaxCommandInnardsChained}\``
+            } else if (finalOutput.asDaxCallRedirected) {
+                const prefix = `await $\``
+                return `await $.str\`${finalOutput.asDaxCallRedirected.slice(prefix.length)}`
+            }
+        }),
+        asDaxCallSuccess: asDaxCallSuccess??(()=>(finalOutput.asDaxCallRedirected && `(${finalOutput.asDaxCallRedirected}).code==0)`)),
+        asDaxCallFail: asDaxCallFail??(()=>(finalOutput.asDaxCallRedirected && `(${finalOutput.asDaxCallRedirected}).code!=0)`)),
+        asJsBacktickStringInnards: asJsBacktickStringInnards??(()=>finalOutput.asDaxCallToString&&`\${${finalOutput.asDaxCallToString}}`),
+        asJsBacktickString: asJsBacktickString??(()=>(finalOutput.asJsBacktickStringInnards && `\`${finalOutput.asJsBacktickStringInnards}\``)),
+        asJsStringValue: asJsStringValue??(()=>{
+            if (asJsNumber) {
+                return `"${callMaybe(asJsNumber)}"`
+            } else if (finalOutput.asJsBacktickString) {
+                return finalOutput.asJsBacktickString
+            } else {
+                return finalOutput.asDaxCallToString
+            }
+        }),
+        asJsArray: asJsArray,
+        asJsNumber: asJsNumber??(()=>(finalOutput.asJsStringValue&&(match=finalOutput.asJsStringValue.match(/['"\`](\d+(?:\.[0-9]+)?)['"\`]/g))&&match[1])),
+        asJsValue: asJsValue??(()=>finalOutput.asJsArray??finalOutput.asJsNumber??finalOutput.asJsStringValue??finalOutput.asDaxCallSuccess),
+        asJsConditional: asJsConditional??(()=>finalOutput.asDaxCallSuccess??finalOutput.asJsValue),
+        asNegatedJsConditional: asNegatedJsConditional??(()=>{
+            if (asJsConditional != null) {
+                return `!${asJsConditional}`
+            } else if (finalOutput.asDaxCallRedirected) {
+                return `(${finalOutput.asDaxCallRedirected}).code!=0)`
+            }
+        }),
+        asJsStatement: asJsStatement??(()=>{
+            if (finalOutput.asDaxCallNoPostfix) {
+                return finalOutput.asDaxCallNoPostfix
+            }
+            return finalOutput.asJsValue
+        }),
+        replace: ()=>(...args)=>finalOutput.toString().replace(...args),
+        match: ()=>(...args)=>finalOutput.toString().match(...args),
+        slice: ()=>(...args)=>finalOutput.toString().slice(...args),
+        ...other,
+        toString: ()=>()=>finalOutput.asJsStatement,
+    })
+    finalOutput.original = output
+    return finalOutput
+}
+
+/**
+ * always returns an array of output forms
+ *
+ * @example
+ * ```js
+ * let a = convertArgParts([ { asJsValue: "10" }, { asJsValue: "'hi'" } ], { translateInner })
+ * console.log(a[0].asJsValue) // `${10}hi`
+ * ```
+ */
+function convertArgParts(argParts, { translateInner }) {
+    if (argParts.length == 1) {
+        return [ translateInner(argParts[0]) ]
+    } else {
+        let newArgs = [ argParts.map(translateInner) ]
+        let multipliers = argParts.filter(each=>each.isMultiplier)
+        for (const eachMultiplier of multipliers) {
+            newArgs = newArgs.map(eachArgParts=>multiply({ argParts:eachArgParts, items: eachMultiplier.items, id: eachMultiplier })).flat(1)
+        }
+        // no multipliers allowed at this point
+        return newArgs.map(argParts=>{
+            const combined = {}
+            if (argParts.length == 1) {
+                return argParts[0]
+            }
+
+            for (let form of ["asDaxArgUnquoted", "asDaxArgSingleQuoteInnards", "asJsBacktickStringInnards", ]) {
+                if (argParts.every(each=>each[form])) {
+                    combined[form] = ()=>{
+                        return argParts.map(each=>each[form]).join("")
+                    }
+                }
+            }
+            if (!combined.asDaxArgUnquoted) {
+                let worked = true
+                let chunks = []
+                for (let each of argParts) {
+                    if (each.asDaxArgUnquoted) {
+                        chunks.push(each.asDaxArgUnquoted)
+                    } else if (each.asJsBacktickStringInnards && validAsUnquotedDaxArgNoInterpolation(each.asJsBacktickStringInnards)) {
+                        chunks.push(each.asJsBacktickStringInnards)
+                    } else if (each.asJsValue) {
+                        chunks.push(`\${${each.asJsValue}}`)
+                    } else {
+                        worked = false
+                        break
+                    }
+                }
+                combined.asDaxArgUnquoted = ()=>{
+                    return chunks.join("")
+                }
+            }
+            if (!combined.asDaxArgSingleQuoteInnards) {
+                let worked = true
+                let chunks = []
+                for (let each of argParts) {
+                    if (each.asDaxArgSingleQuoteInnards) {
+                        chunks.push(each.asDaxArgSingleQuoteInnards)
+                    } else if (each.asDaxArgUnquoted && validAsUnquotedDaxArgNoInterpolation(each.asDaxArgUnquoted)) {
+                        chunks.push(each.asDaxArgUnquoted.replace(/"'"/g,`'"'"'`))
+                    } else if (each.asJsBacktickStringInnards && validAsUnquotedDaxArgNoInterpolation(each.asJsBacktickStringInnards)) {
+                        chunks.push(each.asJsBacktickStringInnards.replace(/"'"/g,`'"'"'`))
+                    } else if (each.asJsValue) {
+                        chunks.push(`\${${each.asJsValue}}`)
+                    } else {
+                        worked = false
+                        break
+                    }
+                }
+                combined.asDaxArgSingleQuoteInnards = ()=>{
+                    return chunks.join("")
+                }
+            }
+            
+            if (argParts.every(each=>each.asJsArray||each.asJsValue)) {
+                combined.asJsArray = ()=>{
+                    const chunks = []
+                    for (let each of argParts) {
+                        if (each.original.asJsArray) {
+                            chunks.push(each.asJsArray.slice(1,-1))
+                        } else {
+                            chunks.push(each.asJsValue)
+                        }
+                    }
+                    return `[${chunks.join(",")}]`
+                }
+            }
+
+            if (!combined.asJsBacktickStringInnards && argParts.every(each=>each.asJsStringValue)) {
+                combines.asJsBacktickStringInnards = ()=>{
+                    const chunks = []
+                    for (let each of argParts) {
+                        if (each.asJsBacktickStringInnards) {
+                            chunks.push(each.asJsBacktickStringInnards)
+                        } else {
+                            chunks.push(`\${${each.asJsStringValue}\}`)
+                        }
+                    }
+                    return chunks.join("")
+                }
+            }
+            
+            return autofillOutputForms(combined)
+        })
+    }
+}
+
+const argOutputAggregator = (nodes, { translateInner }) => {
+    const args = []
+    for (let argParts of argAccumulator(nodes)) {
+        args.push(...convertArgParts(argParts, { translateInner }))
+    }
+    return args
+}
+
+const unifyArgs = (args, { translateInner }) => {
+    const aggregatedArgs = argOutputAggregator(args, { translateInner })
+    let output = {}
+    if (aggregatedArgs.length == 1) {
+        const arg = aggregatedArgs[0]
+        output = { ...arg }
+        if (output.asJsValue) {
+            output.asJsArray = ()=>{
+                return `[${output.asJsValue}]`
+            }
+        }
+        if (arg.asDaxArgUnquoted) {
+            output.asDaxArgSequence = ()=>arg.asDaxArgUnquoted
+        } else if (arg.asDaxArgSingleQuoteInnards) {
+            output.asDaxArgSequence = ()=>arg.asDaxSingleQuoted
+        } else if (arg.asJsStringValue) {
+            output.asDaxArgSequence = ()=>`\${${arg.asJsStringValue}}`
+        }
+    } else {
+        if (aggregatedArgs.every(each=>each.asDaxArgUnquoted||each.asDaxArgSingleQuoteInnards||each.asJsStringValue)) {
+            output.asDaxArgSequence = ()=>{
+                const chunks = []
+                for (const each of aggregatedArgs) {
+                    if (each.asDaxArgUnquoted) {
+                        chunks.push(each.asDaxArgUnquoted)
+                    } else if (each.asDaxArgSingleQuoteInnards) {
+                        chunks.push(each.asDaxSingleQuoted)
+                    } else if (each.asJsStringValue) {
+                        chunks.push(`\${${each.asJsStringValue}}`)
+                    }
+                }
+                return chunks.join(" ")
+            }
+        }
+        if (aggregatedArgs.every(each=>each.asJsValue)) {
+            output.asJsArray = ()=>"["+aggregatedArgs.map(each=>each.asJsValue+", ").join("")+"]"
+        }
+    }
+    return output
+}
+
+const convertArgsCreator = (recursiveParts)=>(nodes, {asArrayString=false, asArray=false, toJsValue=false, debug=false, context=null} = {}) => {
+    const { convertArg } = recursiveParts
+    if (typeof nodes == "string") {
+        const root = parser.parse(": "+nodes).rootNode
+        nodes = root.quickQueryFirst(`(command)`).children.slice(2)
+    }
+    // array of array of nodes
+    const argNodes = argAccumulator(nodes)
+    const args = []
+    for (let arg of argNodes) {
+        if (arg.length == 1) {
+            args.push(convertArg(arg[0], {context}))
+        } else {
+            args.push(
+                arg.map(each=>convertArg(each, {context})).join("") 
+            )
+        }
+    }
+    
+    // args should be an array of array of (strings or functions)
+        // each function returns a string
+        // each string is js backticks escaped
+    // console.debug(`args is:`,args)
+
+    // TODO: handle the case of part of an arg being a function (e.g. splat, range, subshell, etc)
+    // debug && console.debug(`args is:`,args)
+    if (asArray) {
+        return args
+    } else if (toJsValue) {
+        // FIXME: unwrap js value
+        return `\`${args.join(" ")}\``
+    } else if (asArrayString) {
+        return `[${args.map(each=>`\`${each}\``).join(", ")}]`
+    } else {
+        return `\`${args.join(" ")}\``
+    }
 }
 
 export function translate(code, { withHeader=true }={}) {
@@ -89,8 +451,6 @@ export function translate(code, { withHeader=true }={}) {
     let usesFs = false
     let hadShebang = false
     
-    let inPipeline = false
-
     // 
     // helpers
     // 
@@ -109,10 +469,10 @@ export function translate(code, { withHeader=true }={}) {
             //       or a standalone statement: ((count++))
             //       or part of an argument: echo $(( ($FREQ - 2407) / 5 ))
             //       or part of an assignment: i=$((i + 1))
-            return text.replace(/\$?\{?\w+\}?/g,(matchString)=>accessEnvVar(matchString))
+            return text.replaceAll(/(?:\$?\{?([a-zA-Z_]\w*)\}?|\$-)/g,(...matchString)=>accessEnvVar(matchString[1]))
         }
 
-        const fallbackTranslate = (node)=>"/* FIXME: " + escapeComment(node.text) + " */0"
+        const fallbackTranslate = (node)=>({ asJsValue: "/* FIXME: " + escapeComment(node.text) + " */0"})
 
         
     
@@ -121,242 +481,19 @@ export function translate(code, { withHeader=true }={}) {
     // main recursive function
     // 
     // 
+    let mostRecentStatement = null
     function translateInnerBase(node, {context=null}={}) {
-        const translateInnerHelper = (node,options={})=>{
-            let output = translateInnerBase(node, {context, ...options})
-            if (output instanceof Array) {
-                return output
-            }
-            if (output == null) {
-                return null
-            }
-            if (typeof output === "string") {
-                output = { asJsStatement: output }
-            }
-            let {
-                // the output only need to be one or two of these, everything else will get autofilled
-                asDaxCommandInnardsPure,
-                asDaxCommandInnardsRedirected,
-                asDaxCommandInnardsChained,
-                asDaxCallNoPostfix,
-                asDaxCallToString,
-                asDaxCallSuccess,
-                asJsBacktickStringInnards,
-                asJsBacktickString,
-                asJsStringValue,
-                asJsArray,
-                asJsNumber,
-                asJsValue,
-                asJsStatement,
-            } = output
-            let match
-            let finalOutput = asCachedGetters({
-                asDaxCommandInnardsPure: ()=>asDaxCommandInnardsPure,
-                asDaxCommandInnardsRedirected: ()=>asDaxCommandInnardsRedirected??finalOutput.asDaxCommandInnardsPure,
-                asDaxCommandInnardsChained: ()=>asDaxCommandInnardsChained??finalOutput.asDaxCommandInnardsRedirected,
-                asDaxCallNoPostfix: ()=>asDaxCallNoPostfix??(finalOutput.asDaxCommandInnardsChained&&`await $\`${finalOutput.asDaxCommandInnardsChained}\``),
-                asDaxCallToString: ()=>asDaxCallToString??(finalOutput.asDaxCallNoPostfix && `${finalOutput.asDaxCallNoPostfix}.text()`),
-                asDaxCallSuccess: ()=>asDaxCallSuccess??(finalOutput.asDaxCallNoPostfix && `(${finalOutput.asDaxCallNoPostfix}).code==0`),
-                asJsBacktickStringInnards: ()=>asJsBacktickStringInnards,
-                asJsBacktickString: ()=>asJsBacktickString??(finalOutput.asJsBacktickStringInnards && `\`${finalOutput.asJsBacktickStringInnards}\``),
-                asJsStringValue: ()=>asJsStringValue??finalOutput.asJsBacktickString??finalOutput.asDaxCallToString,
-                asJsArray: ()=>asJsArray,
-                asJsNumber: ()=>asJsNumber??(finalOutput.asJsStringValue&&(match=finalOutput.asJsStringValue.match(/['"\`](\d+(?:\.[0-9]+)?)['"\`]/g))&&match[1]),
-                asJsValue: ()=>asJsValue??finalOutput.asJsNumber??finalOutput.asJsStringValue??finalOutput.asDaxCallSuccess,
-                asJsStatement: ()=>asJsStatement??finalOutput.asJsValue,
-                toString: ()=>()=>finalOutput.asJsStatement,
-                replace: ()=>(...args)=>finalOutput.toString().replace(...args),
-                match: ()=>(...args)=>finalOutput.toString().match(...args),
-                slice: ()=>(...args)=>finalOutput.toString().slice(...args),
-            })
-            return finalOutput
-        }
+        const translateInnerHelper = (node,options={})=>autofillOutputForms(translateInnerBase(node, {context, ...options}))
         try {
             // this is a way of making sure context is passed down by default
             const translateInner = translateInnerHelper
             const statementContexts = ["program", "do_group", "function_definition", "if_consequence"]
             let usedLocalEnvVars = false
-            if (node instanceof Array) {
-                return node.map(each=>translateInner(each, {context}))
-            }
+            const recursiveParts = {translateInner}
+            const convertArgs = convertArgsCreator({ translateInner, convertArg: (node)=>translateInner(node).asJsBacktickStringInnards })
             // 
             // helpers that use translateInner
             // 
-                function convertArg(node, {context}={}) {
-                    // possible:
-                        // <raw_string>
-                        // <word>
-                        // <number>
-                        // <text> // for newline escapes
-                        // <command_substitution>
-                        // <simple_expansion>
-                        // <command_name>
-                        // <string>
-                        // <brace_expression>
-                        // <expansion>
-                        // <concatenation>
-                        // <ansi_c_string> AKA $''
-                    if (node.type == "word"||node.type == "number") {
-                        let text = node.text
-                        text = text.replace(/\\([a]|[^a])/g, "$1")
-                        // TODO: glob expansion
-                        // TODO: some brace expansion ends up here
-                        // FIXME: probably some other special stuff like !
-                        return escapeJsString(text).slice(1, -1)
-                    } else if (node.type == "`") {
-                        return ""
-                    } else if (node.type == "array") {
-                        return convertArgs(node.children.filter(each=>each.type!="("&&each.type!=")"), {asArrayString: context=="variable_assignment"} )
-                    } else if (node.type == "command_substitution") {
-                        return `\${${node.children.map(translateInner).join("")}.text()}`
-                    } else if (node.type == "arithmetic_expansion") {
-                        return `\${${translateDoubleParensContent(node.text.slice(3,-2))}}`
-                    } else if (node.type == "raw_string") {
-                        return escapeJsString(node.text.slice(1, -1)).slice(1, -1)
-                    } else if (node.type == "simple_expansion") {
-                        const rawVarName = node.text.replace(/^\$\{?|\}?$/g,"")
-                        const out = ()=>`\${${accessEnvVar(rawVarName)}}`
-                        // for easy joining later
-                        out.toString = out
-                        return [ out ]
-                    } else if (node.type == "string_content") {
-                        return escapeJsString(bashUnescape(node.text)).slice(1, -1)
-                    } else if (node.type == "\"") {
-                        return ""
-                    } else if (node.type == "string") {
-                        let output = node.children.map(convertArg).join("")
-                        return output
-                    } else if (node.type == "concatenation" || node.type == "command_name") {
-                        return node.children.map(convertArg)
-                    } else if (node.type == "brace_expression") {
-                        // FIXME
-                        return node.text
-                    } else if (node.type == "ansi_c_string") {
-                        let text = node.text.slice(2, -1)
-                        text = bashUnescape(text)
-                        text = escapeJsString(text).slice(1, -1)
-                        // FIXME: this is not how ansi_c_string's work
-                        return text
-                    } else if (node.type == "expansion") {
-                        const varName = node.quickQueryFirst(`(variable_name)`).text
-                        usedEnvVars = true
-                        const varEscaped = accessEnvVar(varName)
-                        const debugReference = node.children.slice(1,-1).map(each=>each.text).join("")
-                        const operation = node.children.slice(1,-1).filter(each=>each.type!="variable_name").map(each=>each.text).join("")
-                        let output
-                        if (operation.trim() == "") {
-                            output = `${varEscaped}`
-                        } else if (debugReference.startsWith("#")) {
-                            output = `${varEscaped}.length`
-                        } else if (operation=="^^") {
-                            output = `${varEscaped}.toUpperCase()`
-                        // } else if (operation.trim().startsWith("-")) {
-                        } else {
-                            output = `${varEscaped}/* FIXME: ${escapeComment(debugReference)} */`
-                        }
-                        return `\${${output}}`
-                    // TODO: remove this once the bash parser is fixed: https://github.com/tree-sitter/tree-sitter-bash/issues/306
-                    } else if (node.type == "$") {
-                        return "\\$"
-                    } else {
-                        console.warn(`[convertArg] unhandled node type:`,node.type, new Error().stack.split("\n").slice(3,4).join("\n"))
-                        return null
-                    }
-                }
-
-                function convertArgs(nodes, {asArrayString=false, asArray=false, asSingleString=false, debug=false, context=null} = {}) {
-                    if (typeof nodes == "string") {
-                        const root = parser.parse(": "+nodes).rootNode
-                        nodes = root.quickQueryFirst(`(command)`).children.slice(2)
-                    }
-                    let currentArg = []
-                    let createNewArg = true // this is to handle annoying edge cases by lazily creating new args
-                    const args = []
-                    let escapedNewline = false
-                    // console.debug(`nodes.map(each=>each.text) is:`,nodes.map(each=>each.text))
-                    let nodeToConverted = new Map() // DEBUGGING
-                    for (const eachNode of nodes) {
-                        // 
-                        // find argument splitter
-                        // 
-                        if (eachNode.type == "text" && eachNode.text == "\\") {
-                            escapedNewline = true
-                            continue
-                        }
-                        if (eachNode.type == "whitespace") {
-                            // concat case. Note if whitespace is "\n   " (not just "\n") then it does split arguments
-                            if (escapedNewline && eachNode.text == "\n") {
-                                continue
-                            }
-                            // next argument
-                            createNewArg = true
-                            continue
-                        }
-                        escapedNewline = false
-                        
-                        if (createNewArg) {
-                            createNewArg = false
-                            currentArg = []
-                            args.push(currentArg)
-                        }
-                        const converted = convertArg(eachNode, {context})
-                        nodeToConverted.set(eachNode, converted)
-                        // fail
-                        if (converted == null) {
-                            console.warn(`[convertArgs] failed to convert arg: (${eachNode.type})`, JSON.stringify(eachNode.text))
-                            return null
-                        }
-                        currentArg.push(...[converted].flat(Infinity))
-                    }
-                    
-                    // args should be an array of array of (strings or functions)
-                        // each function returns a string
-                        // each string is js backticks escaped
-                    // console.debug(`args is:`,args)
-
-                    // TODO: handle the case of part of an arg being a function (e.g. splat, range, subshell, etc)
-                    // debug && console.debug(`args is:`,args)
-                    if (asArray) {
-                        return args.map(each=>each.join(""))
-                    } else if (asSingleString) {
-                        if (args.length == 1 && args[0].length == 1) {
-                            const onlyArg = args[0][0]
-                            if (onlyArg.toString().startsWith("${") && onlyArg.toString().endsWith("}")) {
-                                return onlyArg.toString().slice(2,-1)
-                            // dont quote numbers
-                            } else if (onlyArg.toString().match(/^\d+(\.\d+)?$/)) {
-                                return onlyArg.toString()
-                            }
-                        }
-                        return `\`${args.map(each=>each.join("")).join(" ")}\``
-                    } else if (asArrayString) {
-                        return `[${args.map(each=>`\`${each.join("")}\``).join(", ")}]`
-                    } else {
-                        const argStrings = []
-                        // check if no quotes needed, bash quotes only, or full js escaping needed
-                        for (const each of args) {
-                            let noQuotesNeeded = true
-                            let onlyBashQuotesNeeded = true
-                            const aggregated = aggregateStrings(each)
-                            argStrings.push(
-                                aggregated.map(each=>{
-                                    if (typeof each == 'string') {
-                                        return shellEscapeArg(each)
-                                    } else {
-                                        if (!each?.toString) {
-                                            console.warn(`[translateInner] failed during convertArgs:`,args)
-                                            // console.warn(`[translateInner] failed during convertArgs:`,nodeToConverted)
-                                            return ""
-                                        }
-                                        return each.toString()
-                                    }
-                                }).join("")
-                            )
-                        }
-                        return "`"+argStrings.join(" ")+"`"
-                    }
-                }
-
                 function convertBashTestToJS(expr) {
                     expr = expr.trim()
 
@@ -365,7 +502,7 @@ export function translate(code, { withHeader=true }={}) {
                         expr = expr.replace(/^!\s+/,"")
                         negated = "!"
                     }
-                    const asSingleString = (arg)=>convertArgs(arg, {asSingleString: true})
+                    const toJsValue = (arg)=>convertArgs(arg, {toJsValue: true}).replace(/^\`\$\{(.+)\}\`$/,"$1")
                     
                     let match
                     // 
@@ -373,11 +510,11 @@ export function translate(code, { withHeader=true }={}) {
                     // 
                     if (match=expr.match(/\[\[?\s+-n\s+"?\$\((?:command\s+-v|which)\s+(.+?)\)"?\s+\]\]?/)) {
                         usesHasCommand = true
-                        return `${negated} hasCommand(${convertArgs(match[1], {asSingleString: true})})`
+                        return `${negated} hasCommand(${toJsValue(match[1])})`
                     }
                     if (match=expr.match(/\[\[?\s+-z\s+"?\$\((?:command\s+-v|which)\s+(.+?)\)"?\s+\]\]?/)) {
                         usesHasCommand = true
-                        return `${negated?"":"!"} hasCommand(${convertArgs(match[1], {asSingleString: true})})`
+                        return `${negated?"":"!"} hasCommand(${toJsValue(match[1])})`
                     }
                     
                     // 
@@ -385,9 +522,9 @@ export function translate(code, { withHeader=true }={}) {
                     // 
                     if (match=expr.match(/\[\[?\s+-n\s+(.+?)\s+\]\]?/)) {
                         if (negated) {
-                            return `${asSingleString(match[1])}.length == 0`
+                            return `${toJsValue(match[1])}.length == 0`
                         } else {
-                            return `${asSingleString(match[1])}.length > 0`
+                            return `${toJsValue(match[1])}.length > 0`
                         }
                     }
                     // 
@@ -395,9 +532,9 @@ export function translate(code, { withHeader=true }={}) {
                     // 
                     if (match=expr.match(/\[\[?\s+-z\s+(.+?)\s+\]\]?/)) {
                         if (negated) {
-                            return `${asSingleString(match[1])}.length > 0`
+                            return `${toJsValue(match[1])}.length > 0`
                         } else {
-                            return `${asSingleString(match[1])}.length == 0`
+                            return `${toJsValue(match[1])}.length == 0`
                         }
                     }
                     
@@ -427,8 +564,8 @@ export function translate(code, { withHeader=true }={}) {
                     const binaryOpMatch = expr.match(/^(.+?)\s+(!=|-eq|-ne|-gt|-lt|-ge|-le|==|=~|=)\s+(.+)$/)
                     if (binaryOpMatch) {
                         const [, leftRaw, op, rightRaw] = binaryOpMatch
-                        let left = convertArgs(leftRaw.trim(), {debug:false, asSingleString: true })
-                        let right = convertArgs(rightRaw.trim(),{debug:false, asSingleString: true})
+                        let left = toJsValue(leftRaw.trim())
+                        let right = toJsValue(rightRaw.trim())
                         try {
                             if (eval(left)-0 == eval(left)-0) {
                                 left = eval(left)-0
@@ -496,21 +633,20 @@ export function translate(code, { withHeader=true }={}) {
             // 
             // 
             if (node.type == "program") {
-                let contents = translateInner(node.children, {context:"program"})
-                console.debug(`contents.slice(0, 5) is:`,contents.slice(0, 5).map(each=>each.toString()))
-                contents = contents.join("")
+                let contents = node.children.map(each=>translateInner(each, {context:"program"})).join("")
                 hadShebang = hadShebang ? "#!/usr/bin/env -S deno run --allow-all\n" : ""
                 const header = !withHeader ? [] : [
                     `${hadShebang}import fs from "node:fs"`,
                     `import * as dax from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts" // see: https://github.com/dsherret/dax`,
+                    `import * as path from "https://esm.sh/jsr/@std/path@1.1.2"`,
                     `import { env, aliases, $stdout, $stderr, initHelpers } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"`,
                     `const { $, appendTo, overwrite, hasCommand, makeScope, settings } = initHelpers({ dax })`,
                 ]
                 return header.join("\n")+"\n"+contents
             } else if (node.type == "$(" || node.type == ")" || node.type == "`") {
-                return ""
+                return { asJsStatement: "", asJsValue: "" }
             } else if (node.type == "whitespace") {
-                return node.text
+                return { asJsStatement: node.text, asJsValue: node.text }
             // 
             // comments
             // 
@@ -519,9 +655,9 @@ export function translate(code, { withHeader=true }={}) {
                     hadShebang = true
                     return { asJsStatement: "" }
                 }
-                return "//"+node.text.slice(1)
+                return { asJsStatement: "//"+node.text.slice(1) }
             } else if (node.type == ";") {
-                return ";"
+                return { asJsStatement: ";" }
             // 
             // var assignment
             // 
@@ -549,7 +685,6 @@ export function translate(code, { withHeader=true }={}) {
                 usedEnvVars = true
                 // FIXME: handle non-exported vars
                 let varNameNode = node.quickQueryFirst(`(variable_name)`)
-                // fail
                 if (!varNameNode) {
                     return fallbackTranslate(node)
                 }
@@ -568,37 +703,53 @@ export function translate(code, { withHeader=true }={}) {
                 //       deno effectively exports all of them
                 
                 // note: all internals are already escaped for JS
-                const convertedArgs = convertArgs(argNodes, {asSingleString: true, context:"variable_assignment"})
+                let convertedArgs
+                if (argNodes[0] == null) {
+                    convertedArgs = `""`
+                } else {
+                    convertedArgs = convertArgParts(argNodes, { translateInner })[0].asJsValue
+                }
                 if (convertedArgs == null) {
                     return fallbackTranslate(node)
                 } else if (context == "local_variable_assignment") {
-                    return `local${escapeJsKeyAccess(varNameNode.text)} = ${convertedArgs}`
+                    const output = `local${escapeJsKeyAccess(varNameNode.text)} = ${convertedArgs}`
+                    return { asJsStatement: output, asJsValue: output }
                 } else {
-                    return `${accessEnvVar(varNameNode.text)} = ${convertedArgs}`
+                    const output = `${accessEnvVar(varNameNode.text)} = ${convertedArgs}`
+                    return { asJsStatement: output, asJsValue: output }
                 }
             } else if (node.type == "unset_command") {
                 // TODO: account for flags/args for unset (e.g. unset function)
                 const rawVarName = node.text.replace(/^unset\s*/,"")
-                return `delete ${accessEnvVar(rawVarName)}`
+                return { asJsStatement: `delete ${accessEnvVar(rawVarName)}` }
             // 
             // command/alias
             // 
+            } else if (node.type == "negated_command") {
+                let translated = translateInner(node.quickQueryFirst(`(command)`))
+                return {
+                    asDaxCommandInnardsPure: ()=>`! ${translated.asDaxCommandInnardsPure}`,
+                    asJsConditional: translated.asNegatedJsConditional,
+                    asJsValue: translated.asJsValue&&`!${translated.asJsValue}`,
+                    asDaxCallSuccess: translated.asDaxCallFail,
+                    asDaxCallFail: translated.asDaxCallSuccess,
+                }
             } else if (node.type == "command") {
+                // <command>
                 // handle one-off env vars
                 let envChunks = []
-
-                
 
                 // NOTE: alias is part of command
                 // FIXME: command_name
                 const commandNameNode = node.quickQueryFirst(`(command_name)`)
                 const argNodes = node.children.filter(each=>each.type!="command_name" && each.type!="variable_assignment")
-                // DAX handles this
-                const getEnvPrefix = ()=>node.children.filter(each=>each.type=="variable_assignment").join(" ")
+                // DAX basically handles this
+                const getEnvPrefix = ()=>node.children.filter(each=>each.type=="variable_assignment").map(each=>`${each} `).join("")
                 if (commandNameNode.text == "alias") {
                     const aliasName = node.text.match(/^alias\s+(\w+)=/)[1]
                     const aliasValue = node.text.replace(/^alias\s+(\w+)=/,"")
-                    return `aliases${escapeJsKeyAccess(aliasName)} = ${convertArgs(aliasValue, {asSingleString: true})}`
+                    const output = `aliases${escapeJsKeyAccess(aliasName)} = ${convertArgs(aliasValue, {toJsValue: true})}`
+                    return { asJsStatement: output, asJsValue: output }
                 } else if (commandNameNode.text == "set") {
                     // 
                     // set
@@ -607,16 +758,16 @@ export function translate(code, { withHeader=true }={}) {
                 } else if (commandNameNode.text == "return") {
                     const returnValue = node.text.replace(/^return\s*/,"")
                     if (returnValue.match(/"?\$\?"?/)) {
-                        return `return exitCodeOfLastChildProcess`
+                        return { asJsStatement: `return exitCodeOfLastChildProcess` }
                     } else if (returnValue.match(/^\d+$/)) {
-                        return `return exitCodeOfLastChildProcess = ${returnValue}`
+                        return { asJsStatement: `return exitCodeOfLastChildProcess = ${returnValue}` }
                     } else {
-                        return `return exitCodeOfLastChildProcess = ${convertArgs(argNodes, {asSingleString: true})}`
+                        return { asJsStatement: `return exitCodeOfLastChildProcess = ${convertArgs(argNodes, {toJsValue: true})}` }
                     }
                 } else if (commandNameNode.text == "continue") {
-                    return `continue`
+                    return { asJsStatement: `continue` }
                 } else if (commandNameNode.text == "break") {
-                    return `break`
+                    return { asJsStatement: `break` }
                 } else if (commandNameNode.text == "read") {
                     const args = convertArgs(argNodes, {asArray: true})
                     let numberedArgs = []
@@ -646,7 +797,8 @@ export function translate(code, { withHeader=true }={}) {
                         }
                         envVarArg = each
                     }
-                    return `env${escapeJsKeyAccess(envVarArg)} = prompt(${promptArg})${warning}`
+                    const output = `env${escapeJsKeyAccess(envVarArg)} = prompt(${promptArg})${warning}`
+                    return { asJsStatement: output, asJsValue: output }
                     // -a <array>	Assigns the provided word sequence to a variable named <array>.
                     // -d <delimiter>	Reads a line until the provided <delimiter> instead of a new line.
                     // -e	Starts an interactive shell session to obtain the line to read.
@@ -658,33 +810,101 @@ export function translate(code, { withHeader=true }={}) {
                     // -s	Does not echo the user's input.
                     // -t <time>	The command times out after the specified time in seconds.
                     // -u <file descriptor>	Read from file descriptor instead of standard input.
-                } else if (commandNameNode.text == "echo" && statementContexts.includes(context)) {
-                    // slice gets rid of "echo "
-                    // TODO: handle echo -n
-                    const convertedArgs = convertArgs(argNodes, {asArray: true})
+                } else if (commandNameNode.text == "true") {
+                    return { asJsConditional: `true`, asJsStatement: `true`, asJsValue: `true`, asDaxCommandInnardsPure: `true`, asJsBacktickStringInnards: `true`, asJsNumber: "1" }
+                } else if (commandNameNode.text == "false") {
+                    return { asJsConditional: `false`, asJsStatement: `false`, asJsValue: `false`, asDaxCommandInnardsPure: `false`, asJsBacktickStringInnards: `false`, asJsNumber: "0" }
+                } else if (commandNameNode.text == "basename") {
+                    const uniArgs = unifyArgs(argNodes, { translateInner })
+                    console.debug(`uniArgs is:`,uniArgs)
+                    const convertedArgs = convertArgs([ commandNameNode, ...argNodes ])
                     if (convertedArgs == null) {
-                        if (node.quickQueryFirst(`(variable_assignment)`)) {
-                            console.warn(`[echo] failed to convert command:`,xmlStylePreview(node))
-                        }
                         return fallbackTranslate(node)
                     }
-                    let output = `console.log(\`${convertedArgs.join(" ")}\`)`
-                    if ([...output.matchAll(/\n/g)].length <= 2) {
-                        // prefer inline newlines. Note this should never alter functionality, even on interpolated things
-                        output = output.replace(/\n/g,"\\n")
+                    const asDaxCommandInnardsPure = `<basename>${getEnvPrefix()+convertedArgs.slice(1,-1)}</basename>`
+                    const output = {
+                        asDaxCommandInnardsPure,
+                        asJsValue: uniArgs.asJsValue ? `path.basename(${uniArgs.asJsValue})` : null, 
+                        // asJsStatement: `await $\`${asDaxCommandInnardsPure}\``,
+                        asDaxCallToSub: uniArgs.asJsValue ? `path.basename(${uniArgs.asJsValue})` : null,
+                        asJsBacktickStringInnards: `<-1>${`path.basename(${uniArgs.asJsValue})`}<-1>`
                     }
                     return output
+                } else if (commandNameNode.text == "dirname") {
+                    const uniArgs = unifyArgs(argNodes, { translateInner })
+                    console.debug(`uniArgs is:`,uniArgs)
+                    const convertedArgs = convertArgs([ commandNameNode, ...argNodes ])
+                    if (convertedArgs == null) {
+                        return fallbackTranslate(node)
+                    }
+                    const asDaxCommandInnardsPure = `<dirname>${getEnvPrefix()+convertedArgs.slice(1,-1)}</dirname>`
+                    const output = {
+                        asDaxCommandInnardsPure,
+                        asJsValue: uniArgs.asJsValue ? `path.dirname(${uniArgs.asJsValue})` : null,
+                        // asJsStatement: `await $\`${asDaxCommandInnardsPure}\``,
+                        asDaxCallToSub: uniArgs.asJsValue ? `path.dirname(${uniArgs.asJsValue})` : null,
+                    }
+                    return output
+                } else if (commandNameNode.text == "echo") {
+                    const asJsStatement = ()=>{
+                        const convertedArgs = convertArgs(argNodes, {asArray: true})
+                        if (convertedArgs == null) {
+                            return fallbackTranslate(node)
+                        }
+                        let output = `console.log(\`${convertedArgs.join(" ")}\`)`
+                        if ([...output.matchAll(/\n/g)].length <= 2) {
+                            // prefer inline newlines. Note this should never alter functionality, even on interpolated things
+                            output = output.replace(/\n/g,"\\n")
+                        }
+                        return output
+                    }
+                    // TODO: handle echo -n
+                    return {
+                        asDaxCommandInnardsPure: ()=>{
+                            const convertedArgs = convertArgs([ commandNameNode, ...argNodes ])
+                            if (convertedArgs == null) {
+                                return fallbackTranslate(node)
+                            }
+                            return convertedArgs.slice(1,-1)
+                        },
+                        asJsBacktickStringInnards: ()=>{
+                            const translated = unifyArgs(argNodes, { translateInner }).asJsBacktickStringInnards
+                            // TODO: handle args like -n
+                            return "<asJsBacktickStringInnards>"+translated+"</asJsBacktickStringInnards>"
+                        },
+                        asJsConditional: ()=>{
+                            return asJsStatement()+"||1"
+                        },
+                        asNegatedJsConditional: ()=>{
+                            return asJsStatement()
+                        },
+                        asJsStatement,
+                    }
                 } else {
                     const convertedArgs = convertArgs([ commandNameNode, ...argNodes ])
                     if (convertedArgs == null) {
                         return fallbackTranslate(node)
                     }
-                    return  "await $"+convertedArgs.replace(/^\`/,()=>"`"+getEnvPrefix())
+                    const asDaxCommandInnardsPure = `${getEnvPrefix()+convertedArgs.slice(1,-1)}`
+                    return { asDaxCommandInnardsPure, asJsStatement: `await $\`${asDaxCommandInnardsPure}\`` }
+                }
+            } else if (node.type == "test_command") {
+                let asJsValue
+                try {
+                    asJsValue = convertBashTestToJS(node.text)
+                } catch (error) {
+                    
+                }
+                // FIXME: this is temporary
+                return {
+                    asJsValue,
+                    asDaxCommandInnardsPure: ()=>node.text,
                 }
             // 
             // redirection
             // 
             } else if (node.type == "redirected_statement") {
+                mostRecentStatement = node
                 // <redirected_statement>
                 //     <command>
                 //         <command_name>
@@ -702,10 +922,12 @@ export function translate(code, { withHeader=true }={}) {
                 // </redirected_statement>
                 const commandNode = node.children[0]
                 // const inner = translateInner(commandNode).slice(8)
-                const length = "await $".length
-                const inner = commandNode.type == "command" ? convertArgs(commandNode.children) : translateInner(commandNode).slice(length)
-                if (inner == null) {
+                const inner = translateInner(commandNode)
+                // can't use internal commands that need dax outards, or that have been redirected already
+                // FIXME: while_statement can be the target of a redirect
+                if (!inner?.asDaxCommandInnardsChained) {
                     console.warn(`[redirected_statement] failed to translate command (${commandNode.type}):`,commandNode.text)
+                    // console.debug(`inner.asDaxCommandInnardsChained is:`,inner)
                     return fallbackTranslate(node)
                 }
                 const redirects = node.quickQuery(`(file_redirect)`)
@@ -765,7 +987,7 @@ export function translate(code, { withHeader=true }={}) {
                         }
                     // file target
                     } else {
-                        const asJsString = convertArgs(redirectNode.children.filter(each=>![">",">>", "&>", "&>>",">&",">>&","process_substitution","file_descriptor"].includes(each.type)), {asSingleString: true})
+                        const asJsString = convertArgs(redirectNode.children.filter(each=>![">",">>", "&>", "&>>",">&",">>&","process_substitution","file_descriptor"].includes(each.type)), {toJsValue: true})
                         let extraOption = ""
                         if (output.method == "append") {
                             usedAppend = true
@@ -801,26 +1023,21 @@ export function translate(code, { withHeader=true }={}) {
                     }
                     return target
                 }
-                if (redirects.length == 1) {
-                    const convertedArgs = inner
-                    // const convertedArgs = convertArgs(commandNode.children)
-                    if (convertedArgs == null) {
-                        return fallbackTranslate(node)
+
+                const redirectsParsed = redirects.map(parseOutputRedirect)
+                // 
+                // one redirect => we can handle it with dax innards, 
+                // 
+                if (redirects.length == 1 && redirectsParsed[0]?.source != "&") {
+                    const asDaxCommandInnardsRedirected = `${inner.asDaxCommandInnardsChained} ${redirects[0].text}`
+                    return {
+                        asDaxCommandInnardsRedirected,
+                        asJsStatement: `await $\`${asDaxCommandInnardsRedirected}\``,
                     }
-                    // manually handle combined redirect
-                    if (redirects[0].text[0] == "&") {
-                        const redirect = parseOutputRedirect(redirects[0])
-                        if (!redirect) {
-                            return fallbackTranslate(node)
-                        }
-                        return `await $${convertedArgs}.stdout(${redirect.target}).stderr(${redirect.target})`
-                    }
-                    return `await $${convertedArgs.slice(0,-1)} ${redirects[0].text}\``
                 } else {
                     let stdoutTarget
                     let stderrTarget
-                    for (const each of redirects) {
-                        let redirect = parseOutputRedirect(each)
+                    for (const redirect of redirectsParsed) {
                         if (redirect == null) {
                             return fallbackTranslate(node)
                         }
@@ -831,9 +1048,12 @@ export function translate(code, { withHeader=true }={}) {
                             stderrTarget = redirect.target
                         }
                     }
-                    // bash is weird. This is for: ps aux > /dev/null 2>&1
+                    // bash is weird. For: ps aux > /dev/null 2>&1
                     // both stdout and stderr are redirected to /dev/null
-                    // but here they're swapped: ps aux 1>&2 2>&1
+                    // but for: ps aux 1>&2 2>&1
+                    // stdout and stderr are swapped
+                    // there is no way (without a third pipe) to redirect one to dev null and replace it with the other
+                    // ex: route stderr to nowhere and funnel stdout to stderr (and it display rather than also going nowhere)
                     if (stdoutTarget == "...$stderr" && stderrTarget == "...$stdout") {
                         // swap case (do nothing)
                     } else {
@@ -852,125 +1072,126 @@ export function translate(code, { withHeader=true }={}) {
                     if (stderrTarget) {
                         stderrString = `.stderr(${stderrTarget})`
                     }
-                    // convertArgs(commandNode.children)
-                    return `await $${inner.slice(0,-1)}\`${stdoutString}${stderrString}`
+                    const asDaxCallRedirected = `await $\`${inner.asDaxCommandInnardsChained}\`${stdoutString}${stderrString}`
+                    return {
+                        asDaxCallRedirected,
+                        asJsStatement: asDaxCallRedirected,
+                    }
                 }
             // 
             // pipes
             // 
             } else if (node.type == "pipeline") {
-                inPipeline = true
-                const commands = node.children.filter(each=>each.type == `command`||each.type == `redirected_statement`)
-                const pipeInMiddle = commands.some(each=>each.type == `pipeline`&&each!=commands.at(-1))
-                if (pipeInMiddle) {
-                    inPipeline = false
-                    return fallbackTranslate(node)
-                }
-                const lastCommand = commands.at(-1)
-                const lastCommandConverted = translateInner(lastCommand, { context: "pipeline_last_command" })
-                let failed = fallbackTranslate(lastCommand) == lastCommandConverted
-                if (failed) {
-                    inPipeline = false
-                    return fallbackTranslate(node)
-                }
-                const otherCommandsConverted = commands.slice(0,-1).map(each=>convertArgs(each.children, { context: "pipeline_early_command" }))
-                for (const [cmd, each] of zipLong(commands.slice(0,-1), otherCommandsConverted)) {
-                    if (each == null) {
-                        failed = true
-                        console.warn(`[pipeline] failed to convert command:`,cmd.text)
-                        console.warn(``)
-                        break
+                // TODO: handle converting grep and bypassing pipe entirely
+                const possibleInnerTypes = [`command`, `negated_command`, `redirected_statement`, `test_command`]
+                const innerCommands = node.children.filter(each=>possibleInnerTypes.includes(each.type))
+                const converted = innerCommands.map(translateInner)
+                for (const each of converted.slice(0,-1)) {
+                    // we cannot handle redirection before piping yet
+                    // TODO: convert the whole thing to a chain of dax calls (instead of one call)
+                    if (!each.asDaxCommandInnardsPure) {
+                        return fallbackTranslate(node)
                     }
                 }
-                // check failed
-                if (failed) {
-                    inPipeline = false
+                // this should always be true, but just in case
+                if (!converted.at(-1).asDaxCallRedirected) {
                     return fallbackTranslate(node)
                 }
-                // little bit hacky, cleanup later
-                const lastPart = lastCommandConverted.replace(/^await \$\`/,"")
-                const coreCommand = [ ...otherCommandsConverted.map(each=>each.slice(1,-1)), lastPart ].join(" | ")
-                inPipeline = false
-                return `await $\`${coreCommand}`
+                // this isn't as hacky as it looks
+                const output = {
+                    asDaxCallRedirected: ()=>{
+                        const prefix = `await $\``
+                        let lastFixedUp = converted.at(-1).asDaxCallRedirected.slice(prefix.length)
+                        return `${prefix}${converted.slice(0,-1).map(each=>each.asDaxCommandInnardsPure).join(" | ")} | ${lastFixedUp}`
+                    },
+                }
+                // if it can be done with only innards, then that lets us chain them
+                if (converted.at(-1).asDaxCommandInnardsRedirected) {
+                    output.asDaxCommandInnardsRedirected = ()=>{
+                        return converted.map(each=>each.asDaxCommandInnardsRedirected).join(" | ")
+                    }
+                    output.asDaxCallToSub = `await $.str\`${converted.map(each=>each.asDaxCommandInnardsRedirected).join(" | ")}\``
+                }
+                // output.asJsStatement = output.asDaxCallRedirected
+                output.asJsStatement = `${output.asDaxCallRedirected()}`
+                return output
             // 
             // chaining
             // 
             } else if (node.type == "list") {
-                function convertList(node) {
-                    const commands = node.children.filter(each=>each.type == `command`||each.type == `redirected_statement`||each.type == `list`)
+                const parentNode = node
+                // FIXME: still need to handle cases where there are double redirects inside of a list, but that's going to be a lot of work since dax doesn't support it
+                function convertList(node, { onRightSideOfParent=true }={}) {
+                    // TODO: may need parentheses
+                    
+                    // FIXME: this is a hack but only cause I haven't gotten around to properly parsing <test_command>
+                    let match
+                    // if (match=node.text.match(/^(\[\[? .+ \]?\])\s+(\&\&|\|\|)((?:[^a]|a)+)/)) {
+                    //     const negateString = match[2] == "&&" ? "" : " ! "
+                    //     // convert to if statement so that things like "[[ ]] && break" work (otherwise the break will fail)
+                    //     return translateInner(parser.parse(`\n${node.indent}if ${negateString} ${match[1]}; then\n${node.indent}    ${match[3]}\n${node.indent}fi\n`, {context: "list"}).rootNode.quickQueryFirst(`(if_statement)`))
+                    // }
+                    
+                    // this is not a hack, its a clever way to translate problems like "&& continue" (which wouldn't work in JS as-is)
+                    if (match=node.text.match(/^(.+)\s+(\&\&|\|\|)\s+(continue|break|return\s+(.+))$/)) {
+                        const negateString = match[2] == "&&" ? "" : " ! "
+                        let madeUp
+                        // convert to if statement so that things like "[[ ]] && break" work (otherwise the break will fail)
+                        const output = translateInner(parser.parse(madeUp=`\n${node.indent}if ${negateString} ${match[1]}; then\n${node.indent}    ${match[3]}\n${node.indent}fi\n`, {context: "list"}).rootNode.quickQueryFirst(`(if_statement)`))
+                        // console.debug(`madeUp is:`,madeUp)
+                        return output
+                    }
+                    
+                    // FIXME: <compound_statement> probably could appear here
+                    const possibleInnerTypes = [`command`,`negated_command`,`redirected_statement`, `test_command`, `compound_statement`, `list`]
+                    const filterOut = ["&&", "||", ";","whitespace"]
+                    const [ left, right ] = node.children.filter(each=>!filterOut.includes(each.type))
                     const isOr = node.children.some(each=>each.type == `||`)
                     const joiner = isOr ? "||" : "&&"
-                    const baseCommands = ["command","redirected_statement"]
-                    const recurseIfNeeded = (each)=>{
-                        if (each.type == "list") {
-                            return convertList(each)
-                        } else {
-                            return each
-                        }
-                    }
-                    // base case
-                    if (commands.length != 2) {
-                        // FIXME: this next piece is a hack. Should do proper parsing of test_command
-                        let match
-                        if (match=node.text.match(/^(\[\[? .+ \]?\])\s+(\&\&|\|\|)((?:[^a]|a)+)/)) {
-                            const negateString = match[2] == "&&" ? "" : " ! "
-                            // convert to if statement so that things like "[[ ]] && break" work (otherwise the break will fail)
-                            return translateInner(parser.parse(`\n${node.indent}if ${negateString} ${match[1]}; then\n${node.indent}    ${match[3]}\n${node.indent}fi\n`, {context: "list"}).rootNode.quickQueryFirst(`(if_statement)`))
-                        } else {
-                            console.warn(`[list] unsupported list:`,node.text)
-                        }
+                    
+                    // left side
+                    const leftSideIsBaseCase = left.type != "list"
+                    let leftSideAsOutputValue
+                    if (leftSideIsBaseCase) {
+                        leftSideAsOutputValue = translateInner(left)
                     } else {
-                        return [ recurseIfNeeded(commands[0]), joiner, recurseIfNeeded(commands[1]) ].flat(Infinity)
+                        leftSideAsOutputValue = convertList(left, { onRightSideOfParent: false })
                     }
-                }
-                let cmds = convertList(node)
-                if (cmds == null) {
-                    return fallbackTranslate(node)
-                }
-                // this happens when an &&/|| gets turned into a statement, ex: [[ a = b ]] && break
-                if (typeof cmds === 'string' || !(cmds instanceof Array)) {
-                    return cmds
-                }
-                // TODO: remove this once the bash parser is fixed: https://github.com/tree-sitter/tree-sitter-bash/issues/306
-                cmds = cmds.filter(each=>each!=null)
-                let escaped = []
-                var i=-1
-                for (var each of cmds) {
-                    i++
-                    const isLast = each == cmds.at(-1)
-                    if (isLast) {
-                        if (each.type == "redirected_statement") {
-                            const front = `await $\``.length
-                            const bad = fallbackTranslate(each)
-                            const trans = translateInner(each, { context: "list_last_command" })
-                            if (bad == trans) {
-                                console.warn(`[list] failed to convert redirected statement:`,each.text)
-                                return fallbackTranslate(node)
-                            }
-                            escaped.push(trans.slice(front))
-                            break
-                        }
-                    }
-                    if (each == "&&" || each == "||") {
-                        escaped.push(each)
-                        continue
-                    }
-                    // FIXME: sometimes the children are "pipeline"
-                    const cmd = convertArgs(each.children||[], { context: "list_early_command" })
-                    if (cmd == null) {
-                        console.warn(`[list] failed to convert command:`,each.text)
-                        console.warn(``)
+                    if (!leftSideAsOutputValue.asDaxCommandInnardsChained) {
+                        console.warn(`[list] failed to convert left side of:`,parentNode.text)
                         return fallbackTranslate(node)
                     }
-                    // normal command convert
-                    escaped.push(
-                        cmd.slice(1,-1) + (isLast?"`":"")
-                    )
-                }
 
-                return `await $\`${escaped.join(" ")}`
-                // node.quickQueryFirst(`(command) @firstCommand`).firstCommand
-                // return translateInner(node.children[0])
+                    // right side
+                    const rightSideIsBaseCase = right.type != "list"
+                    let rightSideAsOutputValue
+                    if (rightSideIsBaseCase) {
+                        rightSideAsOutputValue = translateInner(right)
+                    } else {
+                        rightSideAsOutputValue = convertList(right, { onRightSideOfParent: true })
+                    }
+
+                    // 
+                    // output
+                    // 
+                    const output = {}
+
+                    if (rightSideAsOutputValue.asDaxCommandInnardsChained) {
+                        output.asDaxCommandInnardsChained = `${leftSideAsOutputValue.asDaxCommandInnardsChained} ${joiner} ${rightSideAsOutputValue.asDaxCommandInnardsChained}`
+                        output.asJsStatement = `await $\`${output.asDaxCommandInnardsChained}\``
+                        return output
+                    } else if (onRightSideOfParent && rightSideAsOutputValue.asDaxCallRedirected) {
+                        const prefix = `await $\``
+                        let lastFixedUp = rightSideAsOutputValue.asDaxCallRedirected.slice(prefix.length)
+                        output.asDaxCallRedirected = `${prefix}${leftSideAsOutputValue.asDaxCommandInnardsChained} ${joiner} ${lastFixedUp}`
+                        output.asJsStatement = output.asDaxCallRedirected
+                        return output
+                    } else {
+                        console.warn(`[list] failed to convert right side of:`,parentNode.text)
+                        return fallbackTranslate(node)
+                    }
+                }
+                return convertList(node)
             // 
             // if 
             // 
@@ -1020,6 +1241,13 @@ export function translate(code, { withHeader=true }={}) {
                     if (each.type == "then") {
                         sawThen = true
                         trimFluff(conditionNodes)
+                        const translatedNodes = conditionNodes.map(each=>translateInner(each, {context:"if_condition"}))
+                        if (translatedNodes.length == 1) {
+                            chunks.push(
+                                `if (${translatedNodes[0].asJsValue}) {\n`
+                            )
+                            continue
+                        }
                         let condition = conditionNodes.map(each=>translateInner(each, {context:"if_condition"})).join("")
                         // // if its all commented out
                         // if (condition.match(/\s*\/(\*|\/)\s*FIXME([^\/]|(?<!\*)\/)+\*\/\s*$/)) {
@@ -1076,9 +1304,15 @@ export function translate(code, { withHeader=true }={}) {
                                 if (each.type == "then") {
                                     sawThen = true
                                     trimFluff(conditionNodes)
-                                    let condition = conditionNodes.map(each=>translateInner(each, {context:"if_condition"})).join("")
+                                    const translatedNodes = conditionNodes.map(each=>translateInner(each, {context:"if_condition"}))
+                                    if (translatedNodes.length == 1) {
+                                        chunks.push(
+                                            `\n${node.indent}} else if (${translatedNodes[0].asJsValue}) {\n`
+                                        )
+                                        continue
+                                    }
                                     chunks.push(
-                                        `\n${node.indent}} else if (${condition}) {\n`
+                                        `\n${node.indent}} else if (${translatedNodes.join("")}) {\n`
                                     )
                                     continue
                                 }
@@ -1287,7 +1521,7 @@ export function translate(code, { withHeader=true }={}) {
                         const [ , start, end ] = inExpr.match(/^{(\d+)\.\.(\d+)}$/)
                         front = `for (${accessEnvVar(varName)} = ${start}; ${accessEnvVar(varName)} <= ${end}; ${accessEnvVar(varName)}++) `
                     } else {
-                        front = `for (${accessEnvVar(varName)} of (${convertArgs(inExpr, { asSingleString: true })}).split(/\s+/g)) `
+                        front = `for (${accessEnvVar(varName)} of (${convertArgs(inExpr, { toJsValue: true })}).split(/\s+/g)) `
                     }
                 }
                 // TODO: for loops that use brackets instead of "do ... done"
@@ -1332,13 +1566,212 @@ export function translate(code, { withHeader=true }={}) {
                 return `// FIXME: you'll need to custom verify this function usage: ${functionName}\n${node.indent}async function ${functionName}(...args) { const { local, env } = makeScope({ args })\n${functionBody}\n${node.indent}}`
                 // return node.children.map(each=>translateInner(each, { context: "function_definition" })).join("")
             // 
+            // misc
+            // 
+            } else if (node.type == "`") {
+                console.warn('node.type == "`"', new Error().stack)
+                return {
+                    asJsBacktickStringInnards: ""
+                }
+            } else if (node.type == "\"") {
+                return {
+                    asJsBacktickStringInnards: ""
+                }
+            // TODO: remove this once the bash parser is fixed: https://github.com/tree-sitter/tree-sitter-bash/issues/306
+            } else if (node.type == "$") {
+                return {
+                    asJsBacktickStringInnards: `\\$`
+                }
+            // 
+            // 
+            // basic args
+            // 
+            // 
+            } else if (node.type == "number") {
+                return {
+                    source: "number",
+                    asDaxArgUnquoted: node.text,
+                    asDaxArgSingleQuoteInnards: node.text,
+                    asJsBacktickStringInnards: node.text,
+                    asJsNumber: node.text,
+                    asJsValue: node.text,
+                    asJsConditional: node.text,
+                }
+            } else if (node.type == "word") {
+                let text = node.text
+                text = bashUnescape(text)
+                text = escapeJsString(text).slice(1, -1)
+                // handle home expansion
+                if (text.match(/^~/)) {
+                    text.replace(/^~/,()=>"\${env.HOME}")
+                }
+                // TODO: glob expansion
+                // TODO: some brace expansion ends up here
+                // FIXME: probably some other special stuff like !
+                return {
+                    source: "word",
+                    asDaxArgUnquoted: node.text.replace(/['*!{} ]+/g,`"$&"`),
+                    asDaxArgSingleQuoteInnards: node.text.replace(/'/g,`'"'"'`),
+                    asJsBacktickStringInnards: text,
+                    asJsValue: `\`${text}\``,
+                }
+            } else if (node.type == "raw_string") {
+                const text = escapeJsString(node.text.slice(1, -1))
+                return {
+                    source: "raw_string",
+                    // asDaxArgUnquoted: text, // normally we'd need to escape single quotes, but there won't be any here
+                    asDaxArgSingleQuoteInnards: text, // normally we'd need to escape single quotes, but there won't be any here
+                    asJsBacktickStringInnards: text.slice(1, -1),
+                    asJsValue: text,
+                }
+            } else if (node.type == "brace_expression") {
+                const rangeArray = rangeToArray(node.text)
+                return {
+                    source: "brace_expression",
+                    asJsArray: JSON.stringify(rangeArray),
+                    items: rangeArray,
+                    isMultiplier: true,
+                }
+            } else if (node.type == "simple_expansion") {
+                const rawVarName = node.text.replace(/^\$\{?|\}?$/g,"")
+                const varAccess = accessEnvVar(rawVarName)
+                return {
+                    source: "simple_expansion",
+                    asDaxArgUnquoted: `\${${varAccess}}`,
+                    asDaxArgSingleQuoteInnards: `\${${varAccess}}`,
+                    asJsStringValue: varAccess,
+                    asJsValue: varAccess,
+                    asJsBacktickStringInnards: `\${${varAccess}}`,
+                }
+            } else if (node.type == "array") {
+                const unifiedArgs = unifyArgs(node.children.filter(each=>each.type!="("&&each.type!=")"), { translateInner })
+                return {
+                    source: "array",
+                    asJsArray: unifiedArgs.asJsArray,
+                }
+            } else if (node.type == "command_substitution") {
+                const realChildren = node.children.filter(each=>each.type!="whitespace"&&each.type!="comment").slice(1,-1) // to remove the $( and )
+                // e.g. translate the <pipeline> or <list> or <command>
+                const translated = translateInner(realChildren[0], {context:"command_substitution"})
+                if (!translated) {
+                    console.debug(`xmlStylePreview(realChildren[0]) is:`,xmlStylePreview(realChildren[0]))
+                }
+                const output = {
+                    source: "command_substitution",
+                    asDaxArgUnquoted: `\${${translated.asDaxCallToSub}}`,
+                    asJsValue: `${translated.original?.asJsStringValue||translated.original?.asJsValue||translated.asDaxCallToSub||translated.asJsValue}`,
+                    asDaxCallToSub: translated.asDaxCallToSub,
+                }
+                // if its not just an interpolation, then it would be preferable
+                if (translated.asJsBacktickStringInnards && !translated.asJsBacktickStringInnards.match(/^\$\{([^a]|a)+\}$/)) {
+                    output.asJsBacktickStringInnards = translated.asJsBacktickStringInnards
+                }
+                return output
+            } else if (node.type == "arithmetic_expansion") {
+                const asJsValue = translateDoubleParensContent(node.text.slice(3,-2))
+                return {
+                    source: "arithmetic_expansion",
+                    asJsValue,
+                    asJsBacktickStringInnards: `\${${asJsValue}}`
+                }
+            } else if (node.type == "string_content") {
+                const text = escapeJsString(bashUnescape(node.text)).slice(1, -1)
+                const output = {
+                    source: "string_content",
+                    asJsBacktickStringInnards: text,
+                }
+                if (validAsUnquotedDaxArgNoInterpolation(text)) {
+                    output.asDaxArgUnquoted = text
+                }
+                return output
+            } else if (node.type == "string") {
+                const translatedNodes = node.children.slice(1,-1).map(translateInner)
+                if (translatedNodes.length == 1) {
+                    return translatedNodes[0]
+                }
+                const output = {
+                    source: "string",
+                }
+                if (translatedNodes.every(each=>each.asDaxArgUnquoted)) {
+                    output.asDaxArgUnquoted = ()=>{
+                        return translatedNodes.map(each=>each.asDaxArgUnquoted).join("")
+                    }
+                }
+                if (translatedNodes.every(each=>each.asJsBacktickStringInnards||each.asDaxArgUnquoted)) {
+                    output.asJsBacktickStringInnards = ()=>{
+                        return translatedNodes.map(each=>each.asJsBacktickStringInnards||each.asDaxArgUnquoted).join("")
+                    }
+                }
+                if (translatedNodes.every(each=>each.asJsValue)) {
+                    output.asDaxArgSingleQuoteInnards = ()=>{
+                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue()}}`).join("")+"</string>"
+                    }
+                }
+                return output
+            } else if (node.type == "concatenation" || node.type == "command_name") {
+                const translatedNodes = node.children.map(translateInner)
+                let output = {
+                    source: "concatenation",
+                }
+                if (translatedNodes.every(each=>each.asDaxArgUnquoted)) {
+                    output.asDaxArgUnquoted = ()=>{
+                        return translatedNodes.map(each=>each.asDaxArgUnquoted).join("")
+                    }
+                }
+                if (translatedNodes.every(each=>each.asJsBacktickStringInnards||each.asDaxArgUnquoted)) {
+                    output.asJsBacktickStringInnards = ()=>{
+                        return translatedNodes.map(each=>each.asJsBacktickStringInnards||each.asDaxArgUnquoted).join("")
+                    }
+                }
+                if (translatedNodes.every(each=>each.asJsValue)) {
+                    output.asDaxArgSingleQuoteInnards = ()=>{
+                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue()}}`).join("")
+                    }
+                }
+                return output
+            } else if (node.type == "ansi_c_string") {
+                let text = node.text.slice(2, -1)
+                text = ansiUnescape(text)
+                text = escapeJsString(text).slice(1, -1)
+                return {
+                    source: "ansi_c_string",
+                    // asDaxArgUnquoted: text.replace(/'/g,`'"'"'`),
+                    asDaxArgSingleQuoteInnards: text.replace(/'/g,`'"'"'`),
+                    asJsBacktickStringInnards: text,
+                }
+            } else if (node.type == "expansion") {
+                const varName = node.quickQueryFirst(`(variable_name)`).text
+                usedEnvVars = true
+                const varEscaped = accessEnvVar(varName)
+                const debugReference = node.children.slice(1,-1).map(each=>each.text).join("")
+                const operation = node.children.slice(1,-1).filter(each=>each.type!="variable_name").map(each=>each.text).join("")
+                let output
+                if (operation.trim() == "") {
+                    output = `${varEscaped}`
+                } else if (debugReference.startsWith("#")) {
+                    output = `${varEscaped}.length`
+                } else if (operation=="^^") {
+                    output = `${varEscaped}.toUpperCase()`
+                // } else if (operation.trim().startsWith("-")) {
+                } else {
+                    output = `${varEscaped}/* FIXME: ${escapeComment(debugReference)} */`
+                }
+                return {
+                    source: "expansion",
+                    asDaxArgUnquoted: `$${varName}`,
+                    asJsStringValue: output,
+                }
+            // 
             // couldn't translate
             // 
             } else {
                 if (statementContexts.includes(context)) {
                     return fallbackTranslate(node)
                 } else {
-                    return node.text
+                    return {
+                        source: "fallback",
+                        asJsStatement: node.text
+                    }
                 }
             }
         } catch (error) {
@@ -1393,7 +1826,43 @@ function bashUnescape(str) {
         }
     )
 }
-
+function ansiUnescape(str) {
+    return str.replace(
+        /\\(\\|"|a|b|e|E|f|n|r|t|v|\$|'|\\?|x[0-9A-Fa-f]{1,2}|[0-7]{1,3})|u[0-9A-Fa-f]{1,4}|U[0-9A-Fa-f]{1,8}|cx/g,
+        (match, seq) => {
+            switch (seq) {
+                case '\\': return '\\';
+                case '"': return '"';
+                case 'a': return '\x07';
+                case 'b': return '\b';
+                case 'e':
+                case 'E': return '\x1B';
+                case 'f': return '\f';
+                case 'n': return '\n';
+                case 'r': return '\r';
+                case 't': return '\t';
+                case 'v': return '\v';
+                case '$': return '$';
+                case "'": return "'";
+                case "?": return "?";
+                default:
+                    if (/^x[0-9A-Fa-f]{1,2}$/.test(seq)) {
+                        return String.fromCharCode(parseInt(seq.slice(1), 16))
+                    }
+                    if (/^[0-7]{1,3}$/.test(seq)) {
+                        return String.fromCharCode(parseInt(seq, 8))
+                    }
+                    if (/^u[0-9A-Fa-f]{1,4}$/.test(seq)) {
+                        return String.fromCharCode(parseInt(seq.slice(1), 16))
+                    }
+                    if (/^U[0-9A-Fa-f]{1,8}$/.test(seq)) {
+                        return String.fromCharCode(parseInt(seq.slice(1), 16))
+                    }
+                    return match // fallback (shouldn't happen)
+            }
+        }
+    )
+}
 
 function aggregateStrings(array) {
     const result = []

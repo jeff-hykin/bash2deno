@@ -1,10 +1,75 @@
 // it'd be nice if I knew another way to get "$0", but until then I'm using process.argv[1]
 import process from "node:process"
+// import { parseCommand } from "https://esm.sh/@jsr/david__dax@0.43.2/src/shell.ts"
 
 // basically just shorthand
 export const $stdout = [ Deno.stdout.readable, {preventClose:true} ]
 export const $stderr = [ Deno.stderr.readable, {preventClose:true} ]
 export const aliases = {}
+
+const rangeToArray = (rangeString)=>{
+    rangeString = rangeString.slice(1,-1)
+    // "{apple,orange,lemon}"
+    // "{1..3}"
+    // not allowed: "{1..$thing}"
+    // not allowed: "{1..$(echo "5")}"
+    let match
+    if (rangeString.includes(",")) {
+        return rangeString.split(",")
+    } else if (match=rangeString.match(/(\d+)\.\.(\d+)/)) {
+        let output = []
+        for (let i=match[1]-0; i<=match[2]-0; i++) {
+            output.push(`${i}`)
+        }
+        return output
+    } else {
+        return [`{${rangeString}}`]
+    }
+}
+
+class Multiplier {
+    constructor(values) {
+        this.values = values
+    }
+    multiply(argParts) {
+        return this.values.map(
+            multiplierValue=>
+                argParts.map(eachPart=>{
+                    if (eachPart == this) {
+                        return multiplierValue
+                    } else {
+                        return eachPart
+                    }
+                })
+        )
+    }
+}
+class EnhancedArg {
+    constructor(argParts) {
+        this.argParts = argParts
+    }
+}
+function processArgs(givenArgs) {
+    let finalArgs = []
+    for (const each of givenArgs) {
+        if (each instanceof EnhancedArg) {
+            const {argParts} = each
+            let newArgs = [ argParts ]
+            let multipliers = argParts.filter(each=>each instanceof Multiplier)
+            for (const eachMultiplier of multipliers) {
+                newArgs = newArgs.map(eachArgParts=>eachMultiplier.multiply(eachArgParts)).flat(1)
+            }
+            finalArgs.push(...newArgs)
+        } else {
+            finalArgs.push(each)
+        }
+    }
+    return finalArgs
+}
+export const range = (strings)=>{
+    const items = rangeToArray(strings[0])
+    return Multiplier.create(items)
+}
 
 // helper for controlling env vars
 export const env = new Proxy(
@@ -71,8 +136,14 @@ export const env = new Proxy(
         },
     }
 )
+if (Deno.build.os=="windows") {
+    // just to make it consistent cross platform
+    env.HOME = Deno.env.get("HOMEPATH")
+}
+
 
 export function initHelpers({ dax, iDontNeedDollarQuestionMark=false }) {
+    const negationName = `_negateShim_${Math.random().toString(36).slice(2)}`
     // use custom dax builder to make it match bash more closely
     const $exportEnvNoThrow = dax.build$({
         commandBuilder: (builder) => builder
@@ -120,6 +191,13 @@ export function initHelpers({ dax, iDontNeedDollarQuestionMark=false }) {
                     }
                 }
             })
+            // this is a hack while waiting on https://github.com/dsherret/dax/pull/341
+            .registerCommand(negationName, (context) => {
+                return Promise.resolve(settings._underlyingDaxFunc`${context.args}`.stdout(context.stdout).stderr(context.stderr)).then((response)=>{
+                    response.code = response.code == 0 ? 1 : 0
+                    return response
+                })
+            })
             .registerCommand("true", () => Promise.resolve({ code: 0 }),)
             .registerCommand("false", () => Promise.resolve({ code: 1 }),)
     })
@@ -129,12 +207,18 @@ export function initHelpers({ dax, iDontNeedDollarQuestionMark=false }) {
     }
     
     // wrap the dax function to 
-    // 1. support aliases and
+    // 1. support aliases, the negation command, and
     // 2. make it possible to dynamically change the default dax function to support bash features like "set -e" and toggling globbing
+    // NOTE: aliases and the negation command are not perfect, prefixing them with a complex ENV assignment would cause problems
+    // waiting on https://github.com/dsherret/dax/pull/341 for the negation command
     const wrappedDax = (strings,...args)=>{
         strings = [...strings]
-        const firstWord = strings[0].trim().split(" ")[0]
-        if (firstWord.match(new RegExp("^("+Object.keys(aliases).sort().join("|")+")$"))) {
+        const firstWord = strings[0].trim().split(" ").filter(each=>!each.includes("="))[0]
+        // negation shim
+        if (firstWord == "!") {
+            strings[0] = strings[0].replace(/^\s*!/,negationName)
+        // alias shim
+        } else if (`${firstWord||""}`.match(new RegExp("^("+Object.keys(aliases).sort().join("|")+")$"))) {
             strings[0] = aliases[firstWord]
         }
         return settings._underlyingDaxFunc(strings,...args)
@@ -143,10 +227,14 @@ export function initHelpers({ dax, iDontNeedDollarQuestionMark=false }) {
     const $ = Object.assign(wrappedDax, dax.$, {
         // $.str`echo hi`
         str: (strings, ...args)=>{
-            return $(strings, ...args).text()
+            return $(strings, ...args).text().replace(/\n+$/g,"")
         },
         // $.success`echo hi`
         success: (strings, ...args)=>{
+            return Promise.resolve($(strings, ...args)).then(({code})=>code===0)
+        },
+        // $.fail`echo hi`
+        fail: (strings, ...args)=>{
             return Promise.resolve($(strings, ...args)).then(({code})=>code===0)
         },
     })

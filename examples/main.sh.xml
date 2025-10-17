@@ -119,7 +119,76 @@
     </command>
     <whitespace text="\n\n" />
     <comment text="# ========== redirect/pipes/chaining ==========" />
-    <whitespace text="\n\n" />
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <concatenation>
+            <word text="hi" />
+            <brace_expression>
+                <"{" text="{" />
+                <number text="1" />
+                <".." text=".." />
+                <number text="3" />
+                <"}" text="}" />
+            </brace_expression>
+        </concatenation>
+    </command>
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <concatenation>
+            <word text="hi" />
+            <word text="{" />
+            <word text="1.." />
+            <simple_expansion>
+                <"$" text="$" />
+                <variable_name text="number" />
+            </simple_expansion>
+            <word text="}" />
+        </concatenation>
+    </command>
+    <whitespace text=" " />
+    <comment text="# not a real range in bash (only in zsh)" />
+    <whitespace text="\n" />
+    <command>
+        <command_name>
+            <word text="echo" />
+        </command_name>
+        <whitespace text=" " />
+        <concatenation>
+            <word text="hi" />
+            <word text="{" />
+            <word text="1.." />
+            <command_substitution>
+                <"$(" text="$(" />
+                <command>
+                    <command_name>
+                        <word text="echo" />
+                    </command_name>
+                    <whitespace text=" " />
+                    <string>
+                        <"\"" text="\"" />
+                        <simple_expansion>
+                            <"$" text="$" />
+                            <variable_name text="number" />
+                        </simple_expansion>
+                        <"\"" text="\"" />
+                    </string>
+                </command>
+                <")" text=")" />
+            </command_substitution>
+            <word text="}" />
+        </concatenation>
+    </command>
+    <whitespace text=" " />
+    <comment text="# not a real range in bash (only in zsh)" />
+    <whitespace text="\n" />
     <command>
         <command_name>
             <word text="echo" />

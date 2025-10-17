@@ -1,6 +1,7 @@
 #!/usr/bin/env -S deno run --allow-all
 import fs from "node:fs"
 import * as dax from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts" // see: https://github.com/dsherret/dax
+import * as path from "https://esm.sh/jsr/@std/path@1.1.2"
 import { env, aliases, $stdout, $stderr, initHelpers } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"
 const { $, appendTo, overwrite, hasCommand, makeScope, settings } = initHelpers({ dax })
 
@@ -11,7 +12,7 @@ env.name = `Alice`
 env.app_version = `1.2.3`
 env.number = 42
 env.greeting = `Hello, ${env.name}!`
-env.file_count = await $`ls | wc -l`.text()
+env.file_count = await $.str`ls | wc -l`
 delete env.number
 
 // ========== ALIASES ==========
@@ -19,18 +20,20 @@ aliases.ll = `ls -lah`
 aliases.greet = `say_hello`
 
 // ========== redirect/pipes/chaining ==========
-
-console.log(`double with subshell ${console.log(`hi`).text()}`)
-console.log(`double subshell ${console.log(`${console.log(`subsub`).text()}`).text()}`)
+console.log(``)
+console.log(`hi{1..${env.number}}`) // not a real range in bash (only in zsh)
+console.log(`hi{1..<asJsBacktickStringInnards>${env.number}</asJsBacktickStringInnards>}`) // not a real range in bash (only in zsh)
+console.log(`double with subshell <asJsBacktickStringInnards>hi</asJsBacktickStringInnards>`)
+console.log(`double subshell <asJsBacktickStringInnards><asJsBacktickStringInnards>subsub</asJsBacktickStringInnards></asJsBacktickStringInnards>`)
 console.log(`${env.dollar}connection`)
-console.log(`${await $`backticks`.text()}`)
-console.log(`Greeting: ${env.greeting}`)
-console.log(`Greeting upper: ${env.greeting.toUpperCase()}`)      // Uppercase
+console.log(``)
+console.log(`Greeting: $greeting`)
+console.log(`Greeting upper: $greeting`)      // Uppercase
 await $`ps aux > /dev/null`
 await $`ps aux`.stdout("null").stderr("null")
-await $`echo aux | echo '${env.USER}'`
-await $`ps aux | grep '${env.USER}' | grep -v 'double pipe'`;
-await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' && echo 'Created demo dir' && echo 'Created demo dir'`
+await $`echo aux | echo ${env.USER}`
+await $`ps aux | grep ${env.USER} | grep -v double pipe`;
+await $`mkdir -p /tmp/demo && echo Created demo dir && echo Created demo dir && echo Created demo dir`
 
 // ========== CONTROL FLOW ==========
 
@@ -50,7 +53,7 @@ env.counter = 0
 while (env.counter < 3) {
 
   console.log(`Counter: ${env.counter}`)
-  env.counter++
+  await $`((counter++))`
 
 }
 
@@ -86,12 +89,12 @@ if (env.answer === `yes`) {
 
 // if curl exists
 if ( hasCommand(`curl`)) {
-    await $`curl -s 'https://example.com'`
+    await $`curl -s https://example.com`
 }
 
 // if name_of_command doesnt exist
 if (! hasCommand(`name_of_command`)) {
-    await $`':' hji`
+    await $`: hji`
 }
 
 // FOR LOOP
@@ -112,7 +115,7 @@ env.counter = 0
 while (env.counter < 3) {
 
   console.log(`Counter: ${env.counter}`)
-  env.counter++
+  await $`((counter++))`
 
 }
 
@@ -120,11 +123,11 @@ while (env.counter < 3) {
 
 console.log(`unquoted`)
 console.log(`unquoted two`)
-console.log(`unquoted with spaces`)
+console.log(`unquoted\\ with\\ spaces`)
 console.log(`newline continued`) // trailing comment
 console.log(`splat*`)
 console.log(`doubleSplat**`)
-console.log(`range{1..3}`)
+console.log(``)
 console.log(`range{1..10..2}`)
 console.log(`single quote`)
 console.log(`single quote\\\n    `)
@@ -135,17 +138,17 @@ console.log(`double quote`)
 console.log(`double quote connection`)
 console.log(`double quote with escapes "`)
 console.log(`double ${env.dollar}`)
-console.log(`double with subshell ${console.log(`hi`).text()}`)
-console.log(`double subshell ${console.log(`${console.log(`subsub`).text()}`).text()}`)
+console.log(`double with subshell <asJsBacktickStringInnards>hi</asJsBacktickStringInnards>`)
+console.log(`double subshell <asJsBacktickStringInnards><asJsBacktickStringInnards>subsub</asJsBacktickStringInnards></asJsBacktickStringInnards>`)
 console.log(`${env.dollar}connection`)
-console.log(`${await $`backticks`.text()}`)
-console.log(`Greeting: ${env.greeting}`)
-console.log(`Greeting upper: ${env.greeting.toUpperCase()}`)      // Uppercase
-console.log(`Greeting length: ${env.greeting.length}`)      // Length
-console.log(`Default fallback: ${env.undefined_var/* FIXME: undefined_var:-DefaultVal */}`) // Default if unset
+console.log(``)
+console.log(`Greeting: $greeting`)
+console.log(`Greeting upper: $greeting`)      // Uppercase
+console.log(`Greeting length: $greeting`)      // Length
+console.log(`Default fallback: $undefined_var`) // Default if unset
 env.filename = `archive.tar.gz`
-console.log(`Base name: ${env.filename/* FIXME: filename%%.* */}`)         // Remove longest match from end
-console.log(`Extension: ${env.filename/* FIXME: filename##*. */}`)         // Remove longest match from start
+console.log(`Base name: $filename`)         // Remove longest match from end
+console.log(`Extension: $filename`)         // Remove longest match from start
 
 // ========== REDIRECTS ==========
 
@@ -156,40 +159,40 @@ await $`ps aux`.stdout("null").stderr("null")
 await $`ps aux`.stdout("null").stderr("null")
 await $`ps aux`.stdout(appendTo(`./somefile`)).stderr(appendTo(`./somefile`))
 await $`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
-await $`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
+await $`ps aux`.stdout(appendTo(`./somefile$number`)).stderr(appendTo(`./somefile$number`))
 await $`ps aux`.stdout("null")
-/* FIXME: tar -cf >(ssh remote_server tar xf -) . */0
+await $`tar -cf  .`
 await $`ls somefile thatdoesnotexist`.stdout(overwrite(`err`))
 
 // ========== PIPES ==========
-await $`ps aux | grep '${env.USER}'`
-await $`ps aux | echo '${env.USER}'`
-await $`echo aux | echo '${env.USER}'`
+await $`ps aux | grep ${env.USER}`
+await $`ps aux | echo ${env.USER}`
+await $`echo aux | echo ${env.USER}`
 // alsdkjfasdj
-await $`ps aux | grep '${env.USER}' | grep -v 'double pipe'`;
+await $`ps aux | grep ${env.USER} | grep -v double pipe`;
 // alsdkjfasdj
-await $`ps aux | grep '${env.USER}' | grep -v 'double pipe and' > /dev/null`;
+await $`ps aux | grep ${env.USER} | grep -v double pipe and > /dev/null`;
 // hi
 /* FIXME: ps aux &>/dev/null | grep "$USER" */0;
 /* FIXME: ps aux 1>&2 2>/dev/null | grep "$USER" */0;
-await $`ps aux | grep '${env.USER}' | grep -v grep`;
+await $`ps aux | grep ${env.USER} | grep -v grep`;
 // TODO: tree-sitter parser doesn't like this part without semicolons for some reason
-/* FIXME: cat <<< 'hello' */0;
-/* FIXME: diff <(ls dir1) <(ls dir2) */0;
-/* FIXME: paste <(ls dir1) <(ls dir2) */0;
+await $`cat `;
+await $`diff  `;
+await $`paste  `;
 
 // ========== CHAINING ==========
-await $`mkdir -p '/tmp/demo' || echo hi`
-await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' && echo 'Created demo dir' && echo 'Created demo dir'`
-await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' || echo 'Failed to create dir'`
-await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' || echo 'Created demo dir' && echo 'Created demo dir'`
+await $`mkdir -p /tmp/demo || echo hi`
+await $`mkdir -p /tmp/demo && echo Created demo dir && echo Created demo dir && echo Created demo dir`
+await $`mkdir -p /tmp/demo && echo Created demo dir || echo Failed to create dir`
+await $`mkdir -p /tmp/demo && echo Created demo dir || echo Created demo dir && echo Created demo dir`
 
 // ========== ESCAPING ==========
 
 console.log(`This is a quote: " and this is a backslash: \\`)
 
 // ========== CALL FUNCTION ==========
-await $`say_hello '${env.name}'`
+await $`say_hello ${env.name}`
 await $`greet Bob`
 
 // ========== END ==========
