@@ -1,3 +1,4 @@
+#!/usr/bin/env -S deno run --allow-all
 import fs from "node:fs"
 import * as dax from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts" // see: https://github.com/dsherret/dax
 import { env, aliases, $stdout, $stderr, initHelpers } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"
@@ -1845,7 +1846,7 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
     if (await $`tty -s`) {
         while (true) {
 
-            env.SSID = prompt(SSID: ) 
+            env.SSID = prompt(SSID: )
             if (env.SSID.length < 1) {
                 await $`echo 'ERROR: Invalid SSID length ${env.SSID.length} (expected 1..32)' >&2`
                 continue
@@ -1856,7 +1857,7 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
         while (true) {
 
             if (env.USE_PSK == 0) {
-                env.PASSPHRASE = prompt(Passphrase: ) 
+                env.PASSPHRASE = prompt(Passphrase: )
                 console.log(``)
                 if (if (!  [[ ${#PASSPHRASE} -gt 0 && ${#PASSPHRASE} -lt 8 ]]) {
                      env.PASSPHRASE.length > 63
@@ -1864,7 +1865,7 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
                     await $`echo 'ERROR: Invalid passphrase length ${env.PASSPHRASE.length} (expected 8..63)' >&2`
                     continue
                 }
-                env.PASSPHRASE2 = prompt(Retype passphrase: ) 
+                env.PASSPHRASE2 = prompt(Retype passphrase: )
                 console.log(``)
                 if (env.PASSPHRASE !== env.PASSPHRASE2) {
                     console.log(`Passphrases do not match.`)
@@ -1872,7 +1873,7 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
                     break
                 }
             } else {
-                env.PASSPHRASE = prompt(PSK: ) 
+                env.PASSPHRASE = prompt(PSK: )
                 console.log(``)
                 if (env.PASSPHRASE.length > 0) {
                     await $`echo 'ERROR: Invalid pre-shared-key length ${env.PASSPHRASE.length} (expected 64)' >&2`
@@ -1882,8 +1883,8 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
         
         }
     } else {
-        env.SSID = prompt() 
-        env.PASSPHRASE = prompt() 
+        env.SSID = prompt()
+        env.PASSPHRASE = prompt()
     }
 }
 

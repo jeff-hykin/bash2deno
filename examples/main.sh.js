@@ -1,3 +1,4 @@
+#!/usr/bin/env -S deno run --allow-all
 import fs from "node:fs"
 import * as dax from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts" // see: https://github.com/dsherret/dax
 import { env, aliases, $stdout, $stderr, initHelpers } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"
@@ -19,8 +20,8 @@ aliases.greet = `say_hello`
 
 // ========== redirect/pipes/chaining ==========
 
-console.log(`double with subshell ${await $`echo hi`.text()}`)
-console.log(`double subshell ${await $`echo '${await $`echo subsub`.text()}'`.text()}`)
+console.log(`double with subshell ${console.log(`hi`).text()}`)
+console.log(`double subshell ${console.log(`${console.log(`subsub`).text()}`).text()}`)
 console.log(`${env.dollar}connection`)
 console.log(`${await $`backticks`.text()}`)
 console.log(`Greeting: ${env.greeting}`)
@@ -33,7 +34,7 @@ await $`mkdir -p '/tmp/demo' && echo 'Created demo dir' && echo 'Created demo di
 
 // ========== CONTROL FLOW ==========
 
-console.log(`Are you sure?`);env.ANSWER = prompt() ;console.log(``)
+console.log(`Are you sure?`);env.ANSWER = prompt();console.log(``)
 if (env.ANSWER.match(/^[Yy]/)) {
     await $`exit 1`
 }
@@ -67,7 +68,7 @@ while (true) {
 
     break;
     continue;
-    console.log(`${env.question}`); env.response = prompt() 
+    console.log(`${env.question}`); env.response = prompt()
     /* FIXME: case "$response" in
         [Yy]* ) answer='yes'; break;;
         [Nn]* ) answer='no'; break;;
@@ -134,8 +135,8 @@ console.log(`double quote`)
 console.log(`double quote connection`)
 console.log(`double quote with escapes "`)
 console.log(`double ${env.dollar}`)
-console.log(`double with subshell ${await $`echo hi`.text()}`)
-console.log(`double subshell ${await $`echo '${await $`echo subsub`.text()}'`.text()}`)
+console.log(`double with subshell ${console.log(`hi`).text()}`)
+console.log(`double subshell ${console.log(`${console.log(`subsub`).text()}`).text()}`)
 console.log(`${env.dollar}connection`)
 console.log(`${await $`backticks`.text()}`)
 console.log(`Greeting: ${env.greeting}`)
