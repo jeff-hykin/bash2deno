@@ -2,7 +2,7 @@
 import fs from "node:fs"
 import * as dax from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts" // see: https://github.com/dsherret/dax
 import * as path from "https://esm.sh/jsr/@std/path@1.1.2"
-import { env, aliases, $stdout, $stderr, initHelpers } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"
+import { env, aliases, $stdout, $stderr, initHelpers, iterateOver } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"
 const { $, appendTo, overwrite, hasCommand, makeScope, settings } = initHelpers({ dax })
 
 
@@ -38,6 +38,7 @@ await $`mkdir -p /tmp/demo && echo Created demo dir && echo Created demo dir && 
 // ========== CONTROL FLOW ==========
 
 console.log(`Are you sure?`);env.ANSWER = prompt();console.log(``)
+// [ ! "$ANSWER" =~ ^[Yy] ]
 if (env.ANSWER.match(/^[Yy]/)) {
     await $`exit 1`
 }
@@ -58,8 +59,10 @@ while (env.counter < 3) {
 }
 
 // IF-ELSE
+// [[ "$name" == "Alice" ]]
 if (env.name === `Alice`) {
   console.log(`Hi Alice!`)
+// [[ "$name" == "Bob" ]]
 } else if (env.name === `Bob`) {
   console.log(`Hi Bob!`)
 } else {
@@ -80,6 +83,7 @@ while (true) {
 
 }
 
+// [ "$answer" = 'yes' ]
 if (env.answer === `yes`) {
     await $`do_something`
 } else {
@@ -88,11 +92,13 @@ if (env.answer === `yes`) {
 
 
 // if curl exists
+// [ -n "$(command -v "curl")" ]
 if ( hasCommand(`curl`)) {
     await $`curl -s https://example.com`
 }
 
 // if name_of_command doesnt exist
+// [ -z "$(command -v "name_of_command")" ]
 if (! hasCommand(`name_of_command`)) {
     await $`: hji`
 }

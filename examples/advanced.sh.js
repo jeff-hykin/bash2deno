@@ -2,7 +2,7 @@
 import fs from "node:fs"
 import * as dax from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts" // see: https://github.com/dsherret/dax
 import * as path from "https://esm.sh/jsr/@std/path@1.1.2"
-import { env, aliases, $stdout, $stderr, initHelpers } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"
+import { env, aliases, $stdout, $stderr, initHelpers, iterateOver } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"
 const { $, appendTo, overwrite, hasCommand, makeScope, settings } = initHelpers({ dax })
 
 
@@ -121,6 +121,7 @@ async function usage(...args) { const { local, env } = makeScope({ args })
 }
 
 // Busybox polyfills
+// cp --help 2>&1 | grep -q -- --no-clobber
 if (/* FIXME: cp --help 2>&1 | grep -q -- --no-clobber */0) {
     // FIXME: you'll need to custom verify this function usage: cp_n
     async function cp_n(...args) { const { local, env } = makeScope({ args })
@@ -143,8 +144,10 @@ if (/* FIXME: cp --help 2>&1 | grep -q -- --no-clobber */0) {
 async function get_avail_fd(...args) { const { local, env } = makeScope({ args })
 
     local.x = ""
-    for (env.x of (``).split(/s+/g)) {
+    // for x in $(seq 1 $(ulimit -n)); 
+    for (env.x of iterateOver(await $.str`seq 1 `)) {
 
+        // [[ ! -a "/proc/$BASHPID/fd/$x" ]]
         if ([object Object]) {
             console.log(`${env.x}`)
             return exitCodeOfLastChildProcess = ``
@@ -171,11 +174,13 @@ async function init_lock(...args) { const { local, env } = makeScope({ args })
     local.LOCK_FILE = `/tmp/create_ap.all.lock`
 
     // we initialize only once
+    // [[ $LOCK_FD -ne 0 ]]
     if (env.LOCK_FD != 0) {
         return exitCodeOfLastChildProcess = 0
     }
 
     env.LOCK_FD = await $.str`get_avail_fd`
+    // [[ $LOCK_FD -eq 0 ]]
     if (env.LOCK_FD == 0) {
         return exitCodeOfLastChildProcess = 1
     }
@@ -185,6 +190,7 @@ async function init_lock(...args) { const { local, env } = makeScope({ args })
     // to avoid race conditions on creation, we need to
     // use umask to set the permissions.
     await $`umask 0555`
+    // !  eval "exec $LOCK_FD>$LOCK_FILE" > /dev/null 2>&1
     if ((await $`! eval exec ${env.LOCK_FD}>${env.LOCK_FILE}`.stdout(...$stdout)).code==0)) {
         return exitCodeOfLastChildProcess = 1
     }
@@ -210,6 +216,7 @@ async function mutex_lock(...args) { const { local, env } = makeScope({ args })
 
     // lock local mutex and read counter
     env.counter_mutex_fd = await $.str`get_avail_fd`
+    // [[ $counter_mutex_fd -ne 0 ]]
     if (env.counter_mutex_fd != 0) {
         await $`eval exec ${env.counter_mutex_fd}<>${env.COUNTER_LOCK_FILE}`
         await $`flock ${env.counter_mutex_fd}`
@@ -239,6 +246,7 @@ async function mutex_unlock(...args) { const { local, env } = makeScope({ args }
 
     // lock local mutex and read counter
     env.counter_mutex_fd = await $.str`get_avail_fd`
+    // [[ $counter_mutex_fd -ne 0 ]]
     if (env.counter_mutex_fd != 0) {
         await $`eval exec ${env.counter_mutex_fd}<>${env.COUNTER_LOCK_FILE}`
         await $`flock ${env.counter_mutex_fd}`
@@ -249,6 +257,7 @@ async function mutex_unlock(...args) { const { local, env } = makeScope({ args }
     }
 
     // decrease counter and unlock global mutex
+    // [[ $counter -gt 0 ]]
     if (env.counter > 0) {
         env.counter =  env.counter - 1 
         await $`[[ $counter -eq 0 ]] && flock -u ${env.LOCK_FD}`
@@ -270,18 +279,26 @@ async function mutex_unlock(...args) { const { local, env } = makeScope({ args }
 async function version_cmp(...args) { const { local, env } = makeScope({ args })
 
     local.V1 = "";local.V2 = "";local.VN = "";local.x = ""
-    await $`[[ ! $1 =~ ^[0-9]+(\.[0-9]+)*$ ]] && die Wrong version format!`
-    await $`[[ ! $2 =~ ^[0-9]+(\.[0-9]+)*$ ]] && die Wrong version format!`
+    await $`[[ ! $1 =~ ^[0-9]+(\\.[0-9]+)*$ ]] && die Wrong version format!`
+    await $`[[ ! $2 =~ ^[0-9]+(\\.[0-9]+)*$ ]] && die Wrong version format!`
 
     env.V1 = [await $.str`echo ${env["1"]} | tr .  `]
     env.V2 = [await $.str`echo ${env["2"]} | tr .  `]
     env.VN = env.V1.length
     /* FIXME: [[ $VN -lt ${#V2[@]} ]] && VN=${#V2[@]} */0
 
-    /* FIXME: for ((x = 0; x < $VN; x++)); do
-        [[ ${V1[x]} -lt ${V2[x]} ]] && return 1
-        [[ ${V1[x]} -gt ${V2[x]} ]] && return 2
-    done */0
+    for (env.x = 0; env.x < env.VN; env.x++) {
+
+        // [[ ${V1[x]} -lt ${V2[x]} ]]
+        if (0 < 0) {
+            return exitCodeOfLastChildProcess = 1
+        }
+        // [[ ${V1[x]} -gt ${V2[x]} ]]
+        if (0 > 0) {
+            return exitCodeOfLastChildProcess = 2
+        }
+    
+    }
 
     return exitCodeOfLastChildProcess = 0
 
@@ -292,19 +309,22 @@ env.USE_IWCONFIG = 0
 // FIXME: you'll need to custom verify this function usage: is_interface
 async function is_interface(...args) { const { local, env } = makeScope({ args })
 
+    // [[ -z "$1" ]]
     if (env["1"].length == 0) {
         return exitCodeOfLastChildProcess = 1
     }
-    await $`[[ -d "/sys/class/net/${1}" ]]`
+    await $`[[ -d "/sys/class/net/\${1}" ]]`
 
 }
 
 // FIXME: you'll need to custom verify this function usage: is_wifi_interface
 async function is_wifi_interface(...args) { const { local, env } = makeScope({ args })
 
+    // which iw > /dev/null 2>&1 && iw dev $1 info > /dev/null 2>&1
     if (/* FIXME: which iw > /dev/null 2>&1 && iw dev $1 info > /dev/null 2>&1 */0) {
         return exitCodeOfLastChildProcess = 0
     }
+    // which iwconfig > /dev/null 2>&1 && iwconfig $1 > /dev/null 2>&1
     if (/* FIXME: which iwconfig > /dev/null 2>&1 && iwconfig $1 > /dev/null 2>&1 */0) {
         env.USE_IWCONFIG = 1
         return exitCodeOfLastChildProcess = 0
@@ -316,10 +336,11 @@ async function is_wifi_interface(...args) { const { local, env } = makeScope({ a
 // FIXME: you'll need to custom verify this function usage: is_bridge_interface
 async function is_bridge_interface(...args) { const { local, env } = makeScope({ args })
 
+    // [[ -z "$1" ]]
     if (env["1"].length == 0) {
         return exitCodeOfLastChildProcess = 1
     }
-    await $`[[ -d "/sys/class/net/${1}/bridge" ]]`
+    await $`[[ -d "/sys/class/net/\${1}/bridge" ]]`
 
 }
 
@@ -327,17 +348,22 @@ async function is_bridge_interface(...args) { const { local, env } = makeScope({
 async function get_phy_device(...args) { const { local, env } = makeScope({ args })
 
     local.x = ""
-    for (env.x of (`/sys/class/ieee80211/*`).split(/s+/g)) {
+    // for x in /sys/class/ieee80211/*; 
+    for (env.x of iterateOver(`/sys/class/ieee80211/*`)) {
 
+        // [[ ! -e "$x" ]]
         if (fs.existsSync(`${env.x}`)) {
             continue
         }
+        // [[ "${x##*/}" = "$1" ]]
         if (0 === env["1"]) {
             console.log(`${env["1"]}`)
             return exitCodeOfLastChildProcess = 0
+        // [[ -e "$x/device/net/$1" ]]
         } else if (fs.existsSync(`${env.x}/device/net/${env["1"]}`)) {
             console.log(``)
             return exitCodeOfLastChildProcess = 0
+        // [[ -e "$x/device/net:$1" ]]
         } else if (fs.existsSync(`${env.x}/device/net:${env["1"]}`)) {
             console.log(``)
             return exitCodeOfLastChildProcess = 0
@@ -354,6 +380,7 @@ async function get_adapter_info(...args) { const { local, env } = makeScope({ ar
 
     local.PHY = ""
     env.PHY = await $.str`get_phy_device ${env["1"]}`
+    // [[ $? -ne 0 ]]
     if (env["?"] != 0) {
         return exitCodeOfLastChildProcess = 1
     }
@@ -374,9 +401,11 @@ async function get_adapter_kernel_module(...args) { const { local, env } = makeS
 async function can_be_sta_and_ap(...args) { const { local, env } = makeScope({ args })
 
     // iwconfig does not provide this information, assume false
+    // [[ $USE_IWCONFIG -eq 1 ]]
     if (env.USE_IWCONFIG == 1) {
         return exitCodeOfLastChildProcess = 1
     }
+    // [[ "$(get_adapter_kernel_module "$1")" == "brcmfmac" ]]
     if (0 === `brcmfmac`) {
         await $`echo WARN: brmfmac driver doesn't work properly with virtual interfaces and >&2`
         await $`echo       it can cause kernel panic. For this reason we disallow virtual >&2`
@@ -384,9 +413,11 @@ async function can_be_sta_and_ap(...args) { const { local, env } = makeScope({ a
         await $`echo       For more info: https://github.com/oblique/create_ap/issues/203 >&2`
         return exitCodeOfLastChildProcess = 1
     }
+    // get_adapter_info "$1" | grep -E '{.* managed.* AP.*}' > /dev/null 2>&1
     if ((await $`get_adapter_info ${env["1"]} | grep -E {.* managed.* AP.*}`.stdout(...$stdout)).code==0)) {
         return exitCodeOfLastChildProcess = 0
     }
+    // get_adapter_info "$1" | grep -E '{.* AP.* managed.*}' > /dev/null 2>&1
     if ((await $`get_adapter_info ${env["1"]} | grep -E {.* AP.* managed.*}`.stdout(...$stdout)).code==0)) {
         return exitCodeOfLastChildProcess = 0
     }
@@ -398,9 +429,11 @@ async function can_be_sta_and_ap(...args) { const { local, env } = makeScope({ a
 async function can_be_ap(...args) { const { local, env } = makeScope({ args })
 
     // iwconfig does not provide this information, assume true
+    // [[ $USE_IWCONFIG -eq 1 ]]
     if (env.USE_IWCONFIG == 1) {
         return exitCodeOfLastChildProcess = 0
     }
+    // get_adapter_info "$1" | grep -E '\* AP$' > /dev/null 2>&1
     if ((await $`get_adapter_info ${env["1"]} | grep -E \\* AP$`.stdout(...$stdout)).code==0)) {
         return exitCodeOfLastChildProcess = 0
     }
@@ -415,18 +448,23 @@ async function can_transmit_to_channel(...args) { const { local, env } = makeSco
     env.IFACE = env["1"]
     env.CHANNEL_NUM = env["2"]
 
+    // [[ $USE_IWCONFIG -eq 0 ]]
     if (env.USE_IWCONFIG == 0) {
+        // [[ $FREQ_BAND == 2.4 ]]
         if (env.FREQ_BAND === 2.4) {
             env.CHANNEL_INFO = await $.str`get_adapter_info  | grep  24[0-9][0-9]\\(\\.0\\+\\)\\? MHz \\[$CHANNEL_NUM\\]`
         } else {
             env.CHANNEL_INFO = await $.str`get_adapter_info  | grep  \\(49[0-9][0-9]\\|5[0-9]\\{3\\}\\)\\(\\.0\\+\\)\\? MHz \\[$CHANNEL_NUM\\]`
         }
+        // [[ -z "${CHANNEL_INFO}" ]]
         if (``.length == 0) {
             return exitCodeOfLastChildProcess = 1
         }
+        // [[ "${CHANNEL_INFO}" == *no\ IR* ]]
         if (0 === `*no\\ IR*`) {
             return exitCodeOfLastChildProcess = 1
         }
+        // [[ "${CHANNEL_INFO}" == *disabled* ]]
         if (0 === `*disabled*`) {
             return exitCodeOfLastChildProcess = 1
         }
@@ -434,6 +472,7 @@ async function can_transmit_to_channel(...args) { const { local, env } = makeSco
     } else {
         env.CHANNEL_NUM = await $.str`printf %02d `
         env.CHANNEL_INFO = await $.str`iwlist  channel | grep -E Channel[[:blank:]]$CHANNEL_NUM[[:blank:]]?:`
+        // [[ -z "${CHANNEL_INFO}" ]]
         if (``.length == 0) {
             return exitCodeOfLastChildProcess = 1
         }
@@ -449,20 +488,28 @@ async function ieee80211_frequency_to_channel(...args) { const { local, env } = 
     local.FREQ_MAYBE_FRACTIONAL = env["1"]
     local.FREQ = env.FREQ_MAYBE_FRACTIONAL/* FIXME: FREQ_MAYBE_FRACTIONAL%.* */
 
+    // [[ $FREQ -lt 1000 ]]
     if (env.FREQ < 1000) {
         console.log(`0`)
+    // [[ $FREQ -eq 2484 ]]
     } else if (env.FREQ == 2484) {
         console.log(`14`)
+    // [[ $FREQ -eq 5935 ]]
     } else if (env.FREQ == 5935) {
         console.log(`2`)
+    // [[ $FREQ -lt 2484 ]]
     } else if (env.FREQ < 2484) {
         console.log(`${ (env.FREQ - 2407) / 5 }`)
+    // [[ $FREQ -ge 4910 && $FREQ -le 4980 ]]
     } else if (env.FREQ >= 4910) {
         console.log(`${ (env.FREQ - 4000) / 5 }`)
+    // [[ $FREQ -lt 5950 ]]
     } else if (env.FREQ < 5950) {
         console.log(`${ (env.FREQ - 5000) / 5 }`)
+    // [[ $FREQ -le 45000 ]]
     } else if (env.FREQ <= 45000) {
         console.log(`${ (env.FREQ - 5950) / 5 }`)
+    // [[ $FREQ -ge 58320 && $FREQ -le 70200 ]]
     } else if (env.FREQ >= 58320) {
         console.log(`${ (env.FREQ - 56160) / 2160 }`)
     } else {
@@ -474,18 +521,21 @@ async function ieee80211_frequency_to_channel(...args) { const { local, env } = 
 // FIXME: you'll need to custom verify this function usage: is_5ghz_frequency
 async function is_5ghz_frequency(...args) { const { local, env } = makeScope({ args })
 
-    await $`[[ $1 =~ ^(49[0-9]{2})|(5[0-9]{3})(\.0+)?$ ]]`
+    await $`[[ $1 =~ ^(49[0-9]{2})|(5[0-9]{3})(\\.0+)?$ ]]`
 
 }
 
 // FIXME: you'll need to custom verify this function usage: is_wifi_connected
 async function is_wifi_connected(...args) { const { local, env } = makeScope({ args })
 
+    // [[ $USE_IWCONFIG -eq 0 ]]
     if (env.USE_IWCONFIG == 0) {
+        // iw dev "$1" link 2>&1 | grep -E '^Connected to' > /dev/null 2>&1
         if (/* FIXME: iw dev "$1" link 2>&1 | grep -E '^Connected to' > /dev/null 2>&1 */0) {
             return exitCodeOfLastChildProcess = 0
         }
     } else {
+        // iwconfig "$1" 2>&1 | grep -E 'Access Point: [0-9a-fA-F]{2}:' > /dev/null 2>&1
         if (/* FIXME: iwconfig "$1" 2>&1 | grep -E 'Access Point: [0-9a-fA-F]{2}:' > /dev/null 2>&1 */0) {
             return exitCodeOfLastChildProcess = 0
         }
@@ -505,7 +555,8 @@ async function is_macaddr(...args) { const { local, env } = makeScope({ args })
 async function is_unicast_macaddr(...args) { const { local, env } = makeScope({ args })
 
     local.x = ""
-    if (!`${await $`is_macaddr ${env["1"]}`.text()}`) {
+    // !  is_macaddr "$1"
+    if ((await is_macaddr(env["1"])) != 0) {
         return exitCodeOfLastChildProcess = 1
     }
     env.x = await $.str`echo ${env["1"]} | cut -d: -f1`
@@ -517,7 +568,10 @@ async function is_unicast_macaddr(...args) { const { local, env } = makeScope({ 
 // FIXME: you'll need to custom verify this function usage: get_macaddr
 async function get_macaddr(...args) { const { local, env } = makeScope({ args })
 
-    /* FIXME: is_interface "$1" || return */0
+    // !  is_interface "$1"
+    if ((await is_interface(env["1"])) != 0) {
+        return exitCodeOfLastChildProcess = ``
+    }
     await $`cat /sys/class/net/$1/address`
 
 }
@@ -525,7 +579,10 @@ async function get_macaddr(...args) { const { local, env } = makeScope({ args })
 // FIXME: you'll need to custom verify this function usage: get_mtu
 async function get_mtu(...args) { const { local, env } = makeScope({ args })
 
-    /* FIXME: is_interface "$1" || return */0
+    // !  is_interface "$1"
+    if ((await is_interface(env["1"])) != 0) {
+        return exitCodeOfLastChildProcess = ``
+    }
     await $`cat /sys/class/net/$1/mtu`
 
 }
@@ -536,20 +593,21 @@ async function alloc_new_iface(...args) { const { local, env } = makeScope({ arg
     local.prefix = env["1"]
     local.i = 0
 
-    await $`mutex_lock`
+    await mutex_lock()
     while (true) {
 
-        if (`${await $`! is_interface ${env.prefix}${env.i} && [[ ! -f $COMMON_CONFDIR/ifaces/$prefix$i ]]`.text()}`) {
+        // ! is_interface $prefix$i && [[ ! -f $COMMON_CONFDIR/ifaces/$prefix$i ]]
+        if ((await $`! is_interface ${env.prefix}${env.i} && [[ ! -f $COMMON_CONFDIR/ifaces/$prefix$i ]]`).code==0)) {
             await $`mkdir -p ${env.COMMON_CONFDIR}/ifaces`
             await $`touch ${env.COMMON_CONFDIR}/ifaces/${env.prefix}${env.i}`
             console.log(`${env.prefix}${env.i}`)
-            await $`mutex_unlock`
+            await mutex_unlock()
             return exitCodeOfLastChildProcess = ``
         }
         env.i = env.i + 1
     
     }
-    await $`mutex_unlock`
+    await mutex_unlock()
 
 }
 
@@ -573,16 +631,17 @@ async function get_new_macaddr(...args) { const { local, env } = makeScope({ arg
     local.OLDMAC = "";local.NEWMAC = "";local.LAST_BYTE = "";local.i = ""
     env.OLDMAC = await $.str`get_macaddr ${env["1"]}`
     env.LAST_BYTE = await $.str`printf %d 0x$OLDMAC`
-    await $`mutex_lock`
+    await mutex_lock()
     for (env.i = 1; env.i <= 255; env.i++) {
 
         env.NEWMAC = `$OLDMAC:${await $.str`printf %02x ${ (env.LAST_BYTE + env.i) % 256 }`}`
-        if (!`${await $`get_all_macaddrs`.text()}`) {
+        // !  (get_all_macaddrs | grep "$NEWMAC" > /dev/null 2>&1)
+        if ((await get_all_macaddrs()) != 0) {
             break
         }
     
     }
-    await $`mutex_unlock`
+    await mutex_unlock()
     console.log(`${env.NEWMAC}`)
 
 }
@@ -594,18 +653,22 @@ async function haveged_watchdog(...args) { const { local, env } = makeScope({ ar
     local.show_warn = 1
     while (true) {
 
+        // [[ $(cat /proc/sys/kernel/random/entropy_avail) -lt 1000 ]]
         if (0 < 1000) {
+            // ! which haveged > /dev/null 2>&1
             if ((await $`! which haveged`.stdout(...$stdout)).code==0)) {
+                // [[ $show_warn -eq 1 ]]
                 if (env.show_warn == 1) {
                     console.log(`WARN: Low entropy detected. We recommend you to install \`haveged'`)
                     env.show_warn = 0
                 }
+            // ! pidof haveged > /dev/null 2>&1
             } else if ((await $`! pidof haveged`.stdout(...$stdout)).code==0)) {
                 console.log(`Low entropy detected, starting haveged`)
                 // boost low-entropy
-                await $`mutex_lock`
+                await mutex_lock()
                 await $`haveged -w 1024 -p ${env.COMMON_CONFDIR}/haveged.pid`
-                await $`mutex_unlock`
+                await mutex_unlock()
             }
         }
         await $`sleep 2`
@@ -621,11 +684,13 @@ env.NM_OLDER_VERSION = 1
 async function networkmanager_exists(...args) { const { local, env } = makeScope({ args })
 
     local.NM_VER = ""
+    // !  which nmcli > /dev/null 2>&1
     if ((await $`! which nmcli`.stdout(...$stdout)).code==0)) {
         return exitCodeOfLastChildProcess = 1
     }
     env.NM_VER = await $.str`nmcli -v | grep -m1 -oE [0-9]+(\\.[0-9]+)*\\.[0-9]+`
-    await $`version_cmp ${env.NM_VER} 0.9.9`
+    await version_cmp(env.NM_VER, `0.9.9`, )
+    // [[ $? -eq 1 ]]
     if (env["?"] == 1) {
         env.NM_OLDER_VERSION = 1
     } else {
@@ -639,9 +704,11 @@ async function networkmanager_exists(...args) { const { local, env } = makeScope
 async function networkmanager_is_running(...args) { const { local, env } = makeScope({ args })
 
     local.NMCLI_OUT = ""
-    if (!`${await $`networkmanager_exists`.text()}`) {
+    // !  networkmanager_exists
+    if ((await networkmanager_exists()) != 0) {
         return exitCodeOfLastChildProcess = 1
     }
+    // [[ $NM_OLDER_VERSION -eq 1 ]]
     if (env.NM_OLDER_VERSION == 1) {
         env.NMCLI_OUT = /* FIXME: nmcli -t -f RUNNING nm 2>&1 | grep -E '^running$' */0
     } else {
@@ -663,13 +730,16 @@ async function networkmanager_knows_iface(...args) { const { local, env } = make
 // FIXME: you'll need to custom verify this function usage: networkmanager_iface_is_unmanaged
 async function networkmanager_iface_is_unmanaged(...args) { const { local, env } = makeScope({ args })
 
-    if (!`${await $`is_interface ${env["1"]}`.text()}`) {
+    // !  is_interface "$1"
+    if ((await is_interface(env["1"])) != 0) {
         return exitCodeOfLastChildProcess = 2
     }
-    if (!`${await $`networkmanager_knows_iface ${env["1"]}`.text()}`) {
+    // !  networkmanager_knows_iface "$1"
+    if ((await networkmanager_knows_iface(env["1"])) != 0) {
         return exitCodeOfLastChildProcess = 0
     }
-    if (!`${await $`nmcli -t -f DEVICE,STATE d`.text()}`) {
+    // !  (nmcli -t -f DEVICE,STATE d 2>&1 | grep -E "^$1:unmanaged$" > /dev/null 2>&1)
+    if ((await $`nmcli -t -f DEVICE,STATE d`).code!=0)) {
         return exitCodeOfLastChildProcess = 1
     }
 
@@ -681,25 +751,29 @@ env.ADDED_UNMANAGED = ""
 async function networkmanager_add_unmanaged(...args) { const { local, env } = makeScope({ args })
 
     local.MAC = "";local.UNMANAGED = "";local.WAS_EMPTY = "";local.x = ""
-    if (!`${await $`networkmanager_exists`.text()}`) {
+    // !  networkmanager_exists
+    if ((await networkmanager_exists()) != 0) {
         return exitCodeOfLastChildProcess = 1
     }
 
-    await $`[[ -d ${NETWORKMANAGER_CONF%/*} ]] || mkdir -p `
-    await $`[[ -f ${NETWORKMANAGER_CONF} ]] || touch `
+    await $`[[ -d \${NETWORKMANAGER_CONF%/*} ]] || mkdir -p `
+    await $`[[ -f \${NETWORKMANAGER_CONF} ]] || touch `
 
+    // [[ $NM_OLDER_VERSION -eq 1 ]]
     if (env.NM_OLDER_VERSION == 1) {
+        // [[ -z "$2" ]]
         if (env["2"].length == 0) {
             env.MAC = await $.str`get_macaddr ${env["1"]}`
         } else {
             env.MAC = env["2"]
         }
+        // [[ -z "$MAC" ]]
         if (env.MAC.length == 0) {
             return exitCodeOfLastChildProcess = 1
         }
     }
 
-    await $`mutex_lock`
+    await mutex_lock()
     env.UNMANAGED = await $.str`grep -m1 -Eo ^unmanaged-devices=[[:alnum:]:;,?*~=-]* /etc/NetworkManager/NetworkManager.conf`
 
     env.WAS_EMPTY = 0
@@ -707,15 +781,19 @@ async function networkmanager_add_unmanaged(...args) { const { local, env } = ma
     env.UNMANAGED = await $.str`echo ${env.UNMANAGED} | sed s/unmanaged-devices=// | tr ;,  `
 
     // if it exists, do nothing
-    for (env.x of (`${env.UNMANAGED}`).split(/s+/g)) {
+    // for x in $UNMANAGED; 
+    for (env.x of iterateOver(env.UNMANAGED)) {
 
-        if (`${await $`[[ $x == "mac:${MAC}" ]] || [[ $NM_OLDER_VERSION -eq 0 && $x == "interface-name:${1}" ]]`.text()}`) {
-            await $`mutex_unlock`
+        // [[ $x == "mac:${MAC}" ]] ||
+               [[ $NM_OLDER_VERSION -eq 0 && $x == "interface-name:${1}" ]]
+        if ((await $`[[ $x == "mac:\${MAC}" ]] || [[ $NM_OLDER_VERSION -eq 0 && $x == "interface-name:\${1}" ]]`).code==0)) {
+            await mutex_unlock()
             return exitCodeOfLastChildProcess = 2
         }
     
     }
 
+    // [[ $NM_OLDER_VERSION -eq 1 ]]
     if (env.NM_OLDER_VERSION == 1) {
         env.UNMANAGED = `$UNMANAGED mac:$MAC`
     } else {
@@ -726,11 +804,13 @@ async function networkmanager_add_unmanaged(...args) { const { local, env } = ma
     env.UNMANAGED = env.UNMANAGED/* FIXME: UNMANAGED// /; */
     env.UNMANAGED = `unmanaged-devices=$UNMANAGED`
 
+    // ! grep -E '^\[keyfile\]' ${NETWORKMANAGER_CONF} > /dev/null 2>&1
     if ((await $`! grep -E ^\\[keyfile\\] `.stdout(...$stdout)).code==0)) {
         await $`echo -e 
 
 [keyfile]
 $UNMANAGED >> ${NETWORKMANAGER_CONF}`
+    // [[ $WAS_EMPTY -eq 1 ]]
     } else if (env.WAS_EMPTY == 1) {
         await $`sed -e s/^\\(\\[keyfile\\].*\\)\$/
 $UNMANAGED/ -i `
@@ -739,7 +819,7 @@ $UNMANAGED/ -i `
     }
 
     env.ADDED_UNMANAGED = `$ADDED_UNMANAGED$1`
-    await $`mutex_unlock`
+    await mutex_unlock()
 
     local.nm_pid = await $.str`pidof NetworkManager`
     await $`[[ -n "$nm_pid" ]] && kill -HUP ${env.nm_pid}`
@@ -752,29 +832,35 @@ $UNMANAGED/ -i `
 async function networkmanager_rm_unmanaged(...args) { const { local, env } = makeScope({ args })
 
     local.MAC = "";local.UNMANAGED = ""
-    if (!`${await $`networkmanager_exists`.text()}`) {
+    // !  networkmanager_exists
+    if ((await networkmanager_exists()) != 0) {
         return exitCodeOfLastChildProcess = 1
     }
+    // [[ ! -f ${NETWORKMANAGER_CONF} ]]
     if ([object Object]) {
         return exitCodeOfLastChildProcess = 1
     }
 
+    // [[ $NM_OLDER_VERSION -eq 1 ]]
     if (env.NM_OLDER_VERSION == 1) {
+        // [[ -z "$2" ]]
         if (env["2"].length == 0) {
             env.MAC = await $.str`get_macaddr ${env["1"]}`
         } else {
             env.MAC = env["2"]
         }
+        // [[ -z "$MAC" ]]
         if (env.MAC.length == 0) {
             return exitCodeOfLastChildProcess = 1
         }
     }
 
-    await $`mutex_lock`
+    await mutex_lock()
     env.UNMANAGED = await $.str`grep -m1 -Eo ^unmanaged-devices=[[:alnum:]:;,?*~=-]* /etc/NetworkManager/NetworkManager.conf | sed s/unmanaged-devices=// | tr ;,  `
 
+    // [[ -z "$UNMANAGED" ]]
     if (env.UNMANAGED.length == 0) {
-        await $`mutex_unlock`
+        await mutex_unlock()
         return exitCodeOfLastChildProcess = 1
     }
 
@@ -782,6 +868,7 @@ async function networkmanager_rm_unmanaged(...args) { const { local, env } = mak
     env.UNMANAGED = await $.str`echo ${env.UNMANAGED} | sed -e s/interface-name:$1\\( \\|\$\\)//g`
     env.UNMANAGED = await $.str`echo ${env.UNMANAGED} | sed -e s/ $//`
 
+    // [[ -z "$UNMANAGED" ]]
     if (env.UNMANAGED.length == 0) {
         await $`sed -e /^unmanaged-devices=.*/d -i `
     } else {
@@ -791,7 +878,7 @@ async function networkmanager_rm_unmanaged(...args) { const { local, env } = mak
     }
 
     env.ADDED_UNMANAGED = env.ADDED_UNMANAGED/* FIXME: ADDED_UNMANAGED/ ${1} / */
-    await $`mutex_unlock`
+    await mutex_unlock()
 
     local.nm_pid = await $.str`pidof NetworkManager`
     await $`[[ -n "$nm_pid" ]] && kill -HUP ${env.nm_pid}`
@@ -803,11 +890,14 @@ async function networkmanager_rm_unmanaged(...args) { const { local, env } = mak
 // FIXME: you'll need to custom verify this function usage: networkmanager_fix_unmanaged
 async function networkmanager_fix_unmanaged(...args) { const { local, env } = makeScope({ args })
 
-    /* FIXME: [[ -f ${NETWORKMANAGER_CONF} ]] || return */0
+    // !  [[ -f ${NETWORKMANAGER_CONF} ]]
+    if (![object Object]) {
+        return exitCodeOfLastChildProcess = ``
+    }
 
-    await $`mutex_lock`
+    await mutex_lock()
     await $`sed -e /^unmanaged-devices=.*/d -i `
-    await $`mutex_unlock`
+    await mutex_unlock()
 
     local.nm_pid = await $.str`pidof NetworkManager`
     await $`[[ -n "$nm_pid" ]] && kill -HUP ${env.nm_pid}`
@@ -817,7 +907,7 @@ async function networkmanager_fix_unmanaged(...args) { const { local, env } = ma
 // FIXME: you'll need to custom verify this function usage: networkmanager_rm_unmanaged_if_needed
 async function networkmanager_rm_unmanaged_if_needed(...args) { const { local, env } = makeScope({ args })
 
-    await $`[[ $ADDED_UNMANAGED =~ .*\ ${1}\ .* ]] && networkmanager_rm_unmanaged ${env["1"]} ${env["2"]}`
+    await $`[[ $ADDED_UNMANAGED =~ .*\\ \${1}\\ .* ]] && networkmanager_rm_unmanaged ${env["1"]} ${env["2"]}`
 
 }
 
@@ -825,13 +915,15 @@ async function networkmanager_rm_unmanaged_if_needed(...args) { const { local, e
 async function networkmanager_wait_until_unmanaged(...args) { const { local, env } = makeScope({ args })
 
     local.RES = ""
-    if (!`${await $`networkmanager_is_running`.text()}`) {
+    // !  networkmanager_is_running
+    if ((await networkmanager_is_running()) != 0) {
         return exitCodeOfLastChildProcess = 1
     }
     while (true) {
 
-        await $`networkmanager_iface_is_unmanaged ${env["1"]}`
+        await networkmanager_iface_is_unmanaged(env["1"])
         env.RES = env["?"]
+        // [[ $RES -eq 0 ]]
         if (env.RES == 0) {
             break
         }
@@ -907,14 +999,15 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
     local.PID = "";local.x = ""
 
     await $`trap  SIGINT SIGUSR1 SIGUSR2 EXIT`
-    await $`mutex_lock`
+    await mutex_lock()
     await $`disown -a`
 
     // kill haveged_watchdog
     await $`[[ -n "$HAVEGED_WATCHDOG_PID" ]] && kill ${env.HAVEGED_WATCHDOG_PID}`
 
     // kill processes
-    for (env.x of (`${env.CONFDIR}/*.pid`).split(/s+/g)) {
+    // for x in $CONFDIR/*.pid; 
+    for (env.x of iterateOver(`${env.CONFDIR}/*.pid`)) {
 
         // even if the $CONFDIR is empty, the for loop will assign
         // a value in $x. so we need to check if the value is a file
@@ -925,8 +1018,10 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
     await $`rm -rf ${env.CONFDIR}`
 
     local.found = 0
-    for (env.x of (``).split(/s+/g)) {
+    // for x in $(list_running_conf); 
+    for (env.x of iterateOver(await $.str`list_running_conf`)) {
 
+        // [[ -f $x/nat_internet_iface && $(cat $x/nat_internet_iface) == $INTERNET_IFACE ]]
         if (`-f ${env.x}/nat_internet_iface` === env.INTERNET_IFACE) {
             env.found = 1
             break
@@ -934,28 +1029,34 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
     
     }
 
+    // [[ $found -eq 0 ]]
     if (env.found == 0) {
         await $`cp -f ${env.COMMON_CONFDIR}/$INTERNET_IFACE_forwarding /proc/sys/net/ipv4/conf/${env.INTERNET_IFACE}/forwarding`
         await $`rm -f ${env.COMMON_CONFDIR}/$INTERNET_IFACE_forwarding`
     }
 
     // if we are the last create_ap instance then set back the common values
-    if (!`${await $`has_running_instance`.text()}`) {
+    // ! has_running_instance
+    if ((await $`has_running_instance`).code!=0)) {
         // kill common processes
-        for (env.x of (`${env.COMMON_CONFDIR}/*.pid`).split(/s+/g)) {
+        // for x in $COMMON_CONFDIR/*.pid; 
+        for (env.x of iterateOver(`${env.COMMON_CONFDIR}/*.pid`)) {
 
             await $`[[ -f $x ]] && kill -9 `
         
         }
 
         // set old ip_forward
+        // [[ -f $COMMON_CONFDIR/ip_forward ]]
         if ([object Object]) {
             await $`cp -f ${env.COMMON_CONFDIR}/ip_forward /proc/sys/net/ipv4`
             await $`rm -f ${env.COMMON_CONFDIR}/ip_forward`
         }
 
         // set old bridge-nf-call-iptables
+        // [[ -f $COMMON_CONFDIR/bridge-nf-call-iptables ]]
         if ([object Object]) {
+            // [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]]
             if (fs.existsSync(`/proc/sys/net/bridge/bridge-nf-call-iptables`)) {
                 await $`cp -f ${env.COMMON_CONFDIR}/bridge-nf-call-iptables /proc/sys/net/bridge`
             }
@@ -965,13 +1066,17 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
         await $`rm -rf ${env.COMMON_CONFDIR}`
     }
 
+    // [[ "$SHARE_METHOD" != "none" ]]
     if (env.SHARE_METHOD !== `none`) {
+        // [[ "$SHARE_METHOD" == "nat" ]]
         if (env.SHARE_METHOD === `nat`) {
             await $`iptables -w -t nat -D POSTROUTING -s $GATEWAY.0/24 ! -o  -j MASQUERADE`
             await $`iptables -w -D FORWARD -i  -s $GATEWAY.0/24 -j ACCEPT`
             await $`iptables -w -D FORWARD -i  -d $GATEWAY.0/24 -j ACCEPT`
+        // [[ "$SHARE_METHOD" == "bridge" ]]
         } else if (env.SHARE_METHOD === `bridge`) {
-            if (!`${await $`is_bridge_interface ${env.INTERNET_IFACE}`.text()}`) {
+            // ! is_bridge_interface $INTERNET_IFACE
+            if ((await is_bridge_interface(env.INTERNET_IFACE)) != 0) {
                 await $`ip link set dev ${env.BRIDGE_IFACE} down`
                 await $`ip link set dev ${env.INTERNET_IFACE} down`
                 await $`ip link set dev ${env.INTERNET_IFACE} promisc off`
@@ -979,9 +1084,10 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
                 await $`ip link delete ${env.BRIDGE_IFACE} type bridge`
                 await $`ip addr flush ${env.INTERNET_IFACE}`
                 await $`ip link set dev ${env.INTERNET_IFACE} up`
-                await $`dealloc_iface ${env.BRIDGE_IFACE}`
+                await dealloc_iface(env.BRIDGE_IFACE)
 
-                for (env.x of (``).split(/s+/g)) {
+                // for x in "${IP_ADDRS[@]}"; 
+                for (env.x of iterateOver(env.IP_ADDRS/* FIXME: IP_ADDRS[@] */)) {
 
                     env.x = env.x/* FIXME: x/inet/ */
                     env.x = env.x/* FIXME: x/secondary/ */
@@ -994,11 +1100,14 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
 
                 await $`ip route flush dev ${env.INTERNET_IFACE}`
 
-                for (env.x of (``).split(/s+/g)) {
+                // for x in "${ROUTE_ADDRS[@]}"; 
+                for (env.x of iterateOver(env.ROUTE_ADDRS/* FIXME: ROUTE_ADDRS[@] */)) {
 
+                    // [[ -z "$x" ]]
                     if (env.x.length == 0) {
                         continue
                     }
+                    // [[ "$x" == default* ]]
                     if (env.x === `default*`) {
                         continue
                     }
@@ -1006,11 +1115,14 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
                 
                 }
 
-                for (env.x of (``).split(/s+/g)) {
+                // for x in "${ROUTE_ADDRS[@]}"; 
+                for (env.x of iterateOver(env.ROUTE_ADDRS/* FIXME: ROUTE_ADDRS[@] */)) {
 
+                    // [[ -z "$x" ]]
                     if (env.x.length == 0) {
                         continue
                     }
+                    // [[ "$x" != default* ]]
                     if (env.x !== `default*`) {
                         continue
                     }
@@ -1018,12 +1130,14 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
                 
                 }
 
-                await $`networkmanager_rm_unmanaged_if_needed ${env.INTERNET_IFACE}`
+                await networkmanager_rm_unmanaged_if_needed(env.INTERNET_IFACE)
             }
         }
     }
 
+    // [[ "$SHARE_METHOD" != "bridge" ]]
     if (env.SHARE_METHOD !== `bridge`) {
+        // [[ $NO_DNS -eq 0 ]]
         if (env.NO_DNS == 0) {
             await $`iptables -w -D INPUT -p tcp -m tcp --dport ${env.DNS_PORT} -j ACCEPT`
             await $`iptables -w -D INPUT -p udp -m udp --dport ${env.DNS_PORT} -j ACCEPT`
@@ -1033,26 +1147,30 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
         await $`iptables -w -D INPUT -p udp -m udp --dport 67 -j ACCEPT`
     }
 
+    // [[ $NO_VIRT -eq 0 ]]
     if (env.NO_VIRT == 0) {
+        // [[ -n "$VWIFI_IFACE" ]]
         if (env.VWIFI_IFACE.length > 0) {
             await $`ip link set down dev `
             await $`ip addr flush `
-            await $`networkmanager_rm_unmanaged_if_needed  `
+            await networkmanager_rm_unmanaged_if_needed(env.VWIFI_IFACE, env.OLD_MACADDR, )
             await $`iw dev  del`
-            await $`dealloc_iface ${env.VWIFI_IFACE}`
+            await dealloc_iface(env.VWIFI_IFACE)
         }
     } else {
         await $`ip link set down dev `
         await $`ip addr flush `
+        // [[ -n "$NEW_MACADDR" ]]
         if (env.NEW_MACADDR.length > 0) {
             await $`ip link set dev  address `
         }
-        await $`networkmanager_rm_unmanaged_if_needed  `
+        await networkmanager_rm_unmanaged_if_needed(env.WIFI_IFACE, env.OLD_MACADDR, )
     }
 
-    await $`mutex_unlock`
-    await $`cleanup_lock`
+    await mutex_unlock()
+    await cleanup_lock()
 
+    // [[ $RUNNING_AS_DAEMON -eq 1 && -n "$DAEMON_PIDFILE" && -f "$DAEMON_PIDFILE" ]]
     if (env.RUNNING_AS_DAEMON == 1) {
         await $`rm ${env.DAEMON_PIDFILE}`
     }
@@ -1096,15 +1214,17 @@ async function clean_exit(...args) { const { local, env } = makeScope({ args })
 async function list_running_conf(...args) { const { local, env } = makeScope({ args })
 
     local.x = ""
-    await $`mutex_lock`
-    for (env.x of (`/tmp/create_ap.*`).split(/s+/g)) {
+    await mutex_lock()
+    // for x in /tmp/create_ap.*; 
+    for (env.x of iterateOver(`/tmp/create_ap.*`)) {
 
+        // [[ -f $x/pid && -f $x/wifi_iface && -d /proc/$(cat $x/pid) ]]
         if ([object Object]) {
             console.log(`${env.x}`)
         }
     
     }
-    await $`mutex_unlock`
+    await mutex_unlock()
 
 }
 
@@ -1112,13 +1232,15 @@ async function list_running_conf(...args) { const { local, env } = makeScope({ a
 async function list_running(...args) { const { local, env } = makeScope({ args })
 
     local.IFACE = "";local.wifi_iface = "";local.x = ""
-    await $`mutex_lock`
-    for (env.x of (``).split(/s+/g)) {
+    await mutex_lock()
+    // for x in $(list_running_conf); 
+    for (env.x of iterateOver(await $.str`list_running_conf`)) {
 
         env.IFACE = env.x/* FIXME: x#*. */
         env.IFACE = env.IFACE/* FIXME: IFACE%%.* */
         env.wifi_iface = await $.str`cat ${env.x}/wifi_iface`
 
+        // [[ $IFACE == $wifi_iface ]]
         if (env.IFACE === env.wifi_iface) {
             console.log(` ${env.IFACE}`)
         } else {
@@ -1126,7 +1248,7 @@ async function list_running(...args) { const { local, env } = makeScope({ args }
         }
     
     }
-    await $`mutex_unlock`
+    await mutex_unlock()
 
 }
 
@@ -1148,16 +1270,18 @@ async function get_pid_from_wifi_iface(...args) { const { local, env } = makeSco
 async function get_confdir_from_pid(...args) { const { local, env } = makeScope({ args })
 
     local.IFACE = "";local.x = ""
-    await $`mutex_lock`
-    for (env.x of (``).split(/s+/g)) {
+    await mutex_lock()
+    // for x in $(list_running_conf); 
+    for (env.x of iterateOver(await $.str`list_running_conf`)) {
 
+        // [[ $(cat $x/pid) == "$1" ]]
         if (0 === env["1"]) {
             console.log(`${env.x}`)
             break
         }
     
     }
-    await $`mutex_unlock`
+    await mutex_unlock()
 
 }
 
@@ -1167,6 +1291,7 @@ async function print_client(...args) { const { local, env } = makeScope({ args }
     local.line = "";local.ipaddr = "";local.hostname = ""
     local.mac = env["1"]
 
+    // [[ -f $CONFDIR/dnsmasq.leases ]]
     if ([object Object]) {
         env.line = await $.str`grep ${env[" $mac"]} ${env.CONFDIR}/dnsmasq.leases | tail -n 1`
         env.ipaddr = await $.str`echo ${env.line} | cut -d  -f3`
@@ -1187,6 +1312,7 @@ async function list_clients(...args) { const { local, env } = makeScope({ args }
     local.wifi_iface = "";local.pid = ""
 
     // If PID is given, get the associated wifi iface
+    // [[ "$1" =~ ^[1-9][0-9]*$ ]]
     if (env["1"].match(/^[1-9][0-9]*\$/)) {
         env.pid = env["1"]
         env.wifi_iface = await $.str`get_wifi_iface_from_pid ${env.pid}`
@@ -1204,10 +1330,12 @@ async function list_clients(...args) { const { local, env } = makeScope({ args }
        Use --list-running to find it out.`
     /* FIXME: [[ -z "$CONFDIR" ]] && CONFDIR=$(get_confdir_from_pid "$pid") */0
 
+    // [[ $USE_IWCONFIG -eq 0 ]]
     if (env.USE_IWCONFIG == 0) {
         local.awk_cmd = `($1 ~ /Station$/) {print $2}`
         local.client_list = await $.str`iw dev ${env.wifi_iface} station dump | awk ${env.awk_cmd}`
 
+        // [[ -z "$client_list" ]]
         if (env.client_list.length == 0) {
             console.log(`No clients connected`)
             return exitCodeOfLastChildProcess = ``
@@ -1217,13 +1345,14 @@ async function list_clients(...args) { const { local, env } = makeScope({ args }
  MAC IP Hostname`
 
         local.mac = ""
-        for (env.mac of (`${env.client_list}`).split(/s+/g)) {
+        // for mac in $client_list; 
+        for (env.mac of iterateOver(env.client_list)) {
 
-            await $`print_client ${env.mac}`
+            await print_client(env.mac)
         
         }
     } else {
-        await $`die This option is not supported for the current driver.`
+        await die(`This option is not supported for the current driver.`)
     }
 
 }
@@ -1233,19 +1362,22 @@ async function has_running_instance(...args) { const { local, env } = makeScope(
 
     local.PID = "";local.x = ""
 
-    await $`mutex_lock`
-    for (env.x of (`/tmp/create_ap.*`).split(/s+/g)) {
+    await mutex_lock()
+    // for x in /tmp/create_ap.*; 
+    for (env.x of iterateOver(`/tmp/create_ap.*`)) {
 
+        // [[ -f $x/pid ]]
         if ([object Object]) {
             env.PID = await $.str`cat ${env.x}/pid`
+            // [[ -d /proc/$PID ]]
             if (fs.existsSync(`/proc/${env.PID}`) && fs.lstatSync(`/proc/${env.PID}`).isDirectory()) {
-                await $`mutex_unlock`
+                await mutex_unlock()
                 return exitCodeOfLastChildProcess = 0
             }
         }
     
     }
-    await $`mutex_lock`
+    await mutex_lock()
 
     return exitCodeOfLastChildProcess = 1
 
@@ -1263,21 +1395,23 @@ async function send_stop(...args) { const { local, env } = makeScope({ args })
 
     local.x = ""
 
-    await $`mutex_lock`
+    await mutex_lock()
     // send stop signal to specific pid
-    if (`${await $`is_running_pid ${env["1"]}`.text()}`) {
+    // is_running_pid $1
+    if ((await is_running_pid(env["1"])) == 0) {
         await $`kill -USR1 ${env["1"]}`
-        await $`mutex_unlock`
+        await mutex_unlock()
         return exitCodeOfLastChildProcess = ``
     }
 
     // send stop signal to specific interface
-    for (env.x of (``).split(/s+/g)) {
+    // for x in $(list_running | grep -E " \(?${1}( |\)?\$)" | cut -f1 -d' '); 
+    for (env.x of iterateOver(await $.str`list_running | grep -E  \\(?$1( |\\)?$) | cut -f1 -d `)) {
 
         await $`kill -USR1 ${env.x}`
     
     }
-    await $`mutex_unlock`
+    await mutex_unlock()
 
 }
 
@@ -1290,13 +1424,17 @@ async function write_config(...args) { const { local, env } = makeScope({ args }
     // If using pkexec, evaluate permissions before writing.
     //   However, the /etc/create_ap.conf
     //   location is excepted.
+    // [[ "$STORE_CONFIG" != "/etc/create_ap.conf" && $PKEXEC_UID ]]
     if (env.STORE_CONFIG !== `/etc/create_ap.conf`) {
+        // [ -e "$STORE_CONFIG" ]
         if (fs.existsSync(`${env.STORE_CONFIG}`)) {
-            if (!`${await $`pkexec --user  test -w ${env.STORE_CONFIG}`.text()}`) {
+            // ! pkexec --user "$(id -nu $PKEXEC_UID)" test -w "$STORE_CONFIG"
+            if ((await $`pkexec --user  test -w ${env.STORE_CONFIG}`).code!=0)) {
                 console.log(`ERROR: 1 ${await $.str`id -nu ${env.PKEXEC_UID}`} has insufficient permissions to write to config file ${env.STORE_CONFIG}`)
                 await $`exit 1`
             }
-        } else if (!`${await $`pkexec --user  test -w `.text()}`) {
+        // ! pkexec --user "$(id -nu $PKEXEC_UID)" test -w "$(dirname "$STORE_CONFIG")"
+        } else if ((await $`pkexec --user  test -w `).code!=0)) {
             console.log(`ERROR: 2 ${await $.str`id -nu ${env.PKEXEC_UID}`} has insufficient permissions to write to config file ${env.STORE_CONFIG}`)
             await $`exit 1`
         }
@@ -1306,12 +1444,14 @@ async function write_config(...args) { const { local, env } = makeScope({ args }
         await $`touch ${env.STORE_CONFIG}`
         await $`chown ${await $.str`id -nu ${env.PKEXEC_UID}`}:${await $.str`id -ng ${env.PKEXEC_GID}`} ${env.STORE_CONFIG}`
         await $`chmod 600 ${env.STORE_CONFIG}`
+    // ! eval 'echo -n > "$STORE_CONFIG"' > /dev/null 2>&1
     } else if ((await $`! eval echo -n > "$STORE_CONFIG"`.stdout(...$stdout)).code==0)) {
         await $`echo ERROR: Unable to create config file ${env.STORE_CONFIG} >&2`
         await $`exit 1`
     }
 
     env.WIFI_IFACE = env["1"]
+    // [[ "$SHARE_METHOD" == "none" ]]
     if (env.SHARE_METHOD === `none`) {
         env.SSID = env["2"]
         env.PASSPHRASE = env["3"]
@@ -1321,6 +1461,7 @@ async function write_config(...args) { const { local, env } = makeScope({ args }
         env.PASSPHRASE = env["4"]
     }
 
+    // [[ $FREQ_BAND_SET -eq 0 ]]
     if (env.FREQ_BAND_SET == 0) {
         env.FREQ_BAND = `default`
     }
@@ -1339,8 +1480,10 @@ async function is_config_opt(...args) { const { local, env } = makeScope({ args 
 
     local.opt = env["1"]
 
-    for (env.elem of (``).split(/s+/g)) {
+    // for elem in "${CONFIG_OPTS[@]}"; 
+    for (env.elem of iterateOver(env.CONFIG_OPTS/* FIXME: CONFIG_OPTS[@] */)) {
 
+        // [[ "$elem" == "$opt" ]]
         if (env.elem === env.opt) {
             return exitCodeOfLastChildProcess = 0
         }
@@ -1380,18 +1523,22 @@ env.ARGS = [env["@"]]
 env.FREQ_BAND_SET = 0
 
 // Preprocessing for --config before option-parsing starts
-/* FIXME: for ((i=0; i<$#; i++)); do
-    if [[ "${ARGS[i]}" = "--config" ]]; then
-        if [[ -f "${ARGS[i+1]}" ]]; then
-            LOAD_CONFIG="${ARGS[i+1]}"
-            read_config
-        else
-            echo "ERROR: No config file found at given location" >&2
-            exit 1
-        fi
+for (env.i=0; env.i<$#; env.i++) {
+
+    // [[ "${ARGS[i]}" = "--config" ]]
+    if (0 === `--config`) {
+        // [[ -f "${ARGS[i+1]}" ]]
+        if ([object Object]) {
+            env.LOAD_CONFIG = env.ARGS/* FIXME: ARGS[i+1] */
+            await read_config()
+        } else {
+            await $`echo ERROR: No config file found at given location >&2`
+            await $`exit 1`
+        }
         break
-    fi
-done */0
+    }
+
+}
 
 env.GETOPT_ARGS = await $.str`getopt -o hc:w:g:de:nm: -l help,hidden,hostapd-debug:,hostapd-timestamps,redirect-to-localhost,mac-filter,mac-filter-accept:,isolate-clients,ieee80211n,ieee80211ac,ieee80211ax,ht_capab:,vht_capab:,driver:,no-virt,fix-unmanaged,country:,freq-band:,mac:,dhcp-dns:,daemon,pidfile:,logfile:,dns-logfile:,stop:,list,list-running,list-clients:,version,psk,no-haveged,no-dns,no-dnsmasq,mkconfig:,config:,dhcp-hosts: -n ${env.PROGNAME} -- ${env["@"]}`
 await $`[[ $? -ne 0 ]] && exit 1`
@@ -1612,12 +1759,15 @@ while (true) {
 }
 
 // Load positional args from config file, if needed
+// [[ -n "$LOAD_CONFIG" && $# -eq 0 ]]
 if (env.LOAD_CONFIG.length > 0) {
     env.i = 0
     // set arguments in order
-    for (env.x of (`WIFI_IFACE INTERNET_IFACE SSID PASSPHRASE`).split(/s+/g)) {
+    // for x in WIFI_IFACE INTERNET_IFACE SSID PASSPHRASE; 
+    for (env.x of iterateOver(`WIFI_IFACE`)) {
 
-        if (`${await $`eval [[ -n "$$x" ]]`.text()}`) {
+        // eval "[[ -n \"\$${x}\" ]]"
+        if ((await $`eval [[ -n "$$x" ]]`).code==0)) {
             await $`eval set -- "\${@:1:${env.i}}" "$$x"`
             await $`((i++))`
         }
@@ -1628,24 +1778,29 @@ if (env.LOAD_CONFIG.length > 0) {
 }
 
 // Check if required number of positional args are present
+// [[ $# -lt 1 && $FIX_UNMANAGED -eq 0  && -z "$STOP_ID" &&
+      $LIST_RUNNING -eq 0 && -z "$LIST_CLIENTS_ID" ]]
 if ([object Object]) {
     await $`usage >&2`
     await $`exit 1`
 }
 
 // Set NO_DNS, if dnsmasq is disabled
+// [[ $NO_DNSMASQ -eq 1 ]]
 if (env.NO_DNSMASQ == 1) {
   env.NO_DNS = 1
 }
 
 await $`trap cleanup_lock EXIT`
 
+// [[ $(id -u) -ne 0 ]]
 if (0 != 0) {
     await $`echo create_ap must be run as root. >&2`
     await $`exit 1`
 }
 
-if (!`${await $`init_lock`.text()}`) {
+// ! init_lock
+if ((await init_lock()) != 0) {
     await $`echo ERROR: Failed to initialize lock >&2`
     await $`exit 1`
 }
@@ -1658,51 +1813,62 @@ await $`trap die SIGUSR2`
 
 await $`[[ -n "$STORE_CONFIG" ]] && write_config ${env["@"]}`
 
+// [[ $LIST_RUNNING -eq 1 ]]
 if (env.LIST_RUNNING == 1) {
     //echo -e "List of running $PROGNAME instances:\n"
-    await $`list_running`
+    await list_running()
     await $`exit 0`
 }
 
+// [[ -n "$LIST_CLIENTS_ID" ]]
 if (env.LIST_CLIENTS_ID.length > 0) {
-    await $`list_clients ${env.LIST_CLIENTS_ID}`
+    await list_clients(env.LIST_CLIENTS_ID)
     await $`exit 0`
 }
 
+// [[ -n "$STOP_ID" ]]
 if (env.STOP_ID.length > 0) {
     console.log(`Trying to kill ${env.PROGNAME} instance associated with ${env.STOP_ID}...`)
-    await $`send_stop ${env.STOP_ID}`
+    await send_stop(env.STOP_ID)
     await $`exit 0`
 }
 
+// [[ $FIX_UNMANAGED -eq 1 ]]
 if (env.FIX_UNMANAGED == 1) {
     console.log(`Trying to fix unmanaged status in NetworkManager...`)
-    await $`networkmanager_fix_unmanaged`
+    await networkmanager_fix_unmanaged()
     await $`exit 0`
 }
 
+// [[ $DAEMONIZE -eq 1 && $RUNNING_AS_DAEMON -eq 0 ]]
 if (env.DAEMONIZE == 1) {
     // Assume we're running underneath a service manager if PIDFILE is set
     // and don't clobber it's output with a useless message
+    // [ -z "$DAEMON_PIDFILE" ]
     if (env.DAEMON_PIDFILE.length == 0) {
         console.log(`Running as Daemon...`)
     }
     // run a detached create_ap
     await $`(variable_assignment name: (variable_name) value: (number)) setsid ${env["0"]} `.stdout(...$stdout) /* FIXME: & */0
     await $`exit 0`
+// [[ $RUNNING_AS_DAEMON -eq 1 && -n "$DAEMON_PIDFILE" ]]
 } else if (env.RUNNING_AS_DAEMON == 1) {
     await $`echo ${env.$} >$DAEMON_PIDFILE`
 }
 
+// [[ $FREQ_BAND_SET != 0 ]]
 if (env.FREQ_BAND_SET !== 0) {
+    // [[ $FREQ_BAND != 2.4 && $FREQ_BAND != 5 ]]
     if (env.FREQ_BAND !== 2.4) {
         await $`echo ERROR: Invalid frequency band >&2`
         await $`exit 1`
     }
 }
 
+// [[ $CHANNEL == default ]]
 if (env.CHANNEL === `default`) {
     env.USING_DEFAULT_CHANNEL = 1
+    // [[ $FREQ_BAND == 2.4 ]]
     if (env.FREQ_BAND === 2.4) {
         env.CHANNEL = 1
     } else {
@@ -1713,6 +1879,7 @@ if (env.CHANNEL === `default`) {
 }
 
 
+// [[ $FREQ_BAND != 5 && $CHANNEL -gt 14 ]]
 if (env.FREQ_BAND !== 5) {
     console.log(`Channel number is greater than 14, assuming 5GHz frequency band`)
     env.FREQ_BAND = 5
@@ -1720,20 +1887,25 @@ if (env.FREQ_BAND !== 5) {
 
 env.WIFI_IFACE = env["1"]
 
-if (!`${await $`is_wifi_interface `.text()}`) {
+// ! is_wifi_interface ${WIFI_IFACE}
+if ((await is_wifi_interface(env.WIFI_IFACE)) != 0) {
     await $`echo ERROR: '$WIFI_IFACE' is not a WiFi interface >&2`
     await $`exit 1`
 }
 
-if (!`${await $`can_be_ap `.text()}`) {
+// ! can_be_ap ${WIFI_IFACE}
+if ((await can_be_ap(env.WIFI_IFACE)) != 0) {
     await $`echo ERROR: Your adapter does not support AP (master) mode >&2`
     await $`exit 1`
 }
 
-if (!`${await $`can_be_sta_and_ap `.text()}`) {
-    if (`${await $`is_wifi_connected `.text()}`) {
+// ! can_be_sta_and_ap ${WIFI_IFACE}
+if ((await can_be_sta_and_ap(env.WIFI_IFACE)) != 0) {
+    // is_wifi_connected ${WIFI_IFACE}
+    if ((await is_wifi_connected(env.WIFI_IFACE)) == 0) {
         await $`echo ERROR: Your adapter can not be a station (i.e. be connected) and an AP at the same time >&2`
         await $`exit 1`
+    // [[ $NO_VIRT -eq 0 ]]
     } else if (env.NO_VIRT == 0) {
         await $`echo WARN: Your adapter does not fully support AP virtual interface, enabling --no-virt >&2`
         env.NO_VIRT = 1
@@ -1742,23 +1914,28 @@ if (!`${await $`can_be_sta_and_ap `.text()}`) {
 
 env.HOSTAPD = await $.str`which hostapd`
 
+// [[ ! -x "$HOSTAPD" ]]
 if (fs.existsSync(`${env.HOSTAPD}`) && (() => { try { fs.accessSync(`${env.HOSTAPD}`, fs.constants.X_OK); return true; } catch (e) { return false; } })()) {
     await $`echo ERROR: hostapd not found. >&2`
     await $`exit 1`
 }
 
+// [[ $(get_adapter_kernel_module ${WIFI_IFACE}) =~ ^(8192[cd][ue]|8723a[sue])$ ]]
 if (0.match(/0/)) {
+    // ! strings "$HOSTAPD" | grep -m1 rtl871xdrv > /dev/null 2>&1
     if ((await $`! strings ${env.HOSTAPD} | grep -m1 rtl871xdrv`.stdout(...$stdout)).code==0)) {
         await $`echo ERROR: You need to patch your hostapd with rtl871xdrv patches. >&2`
         await $`exit 1`
     }
 
+    // [[ $DRIVER != "rtl871xdrv" ]]
     if (env.DRIVER !== `rtl871xdrv`) {
         await $`echo WARN: Your adapter needs rtl871xdrv, enabling --driver=rtl871xdrv >&2`
         env.DRIVER = `rtl871xdrv`
     }
 }
 
+// [[ "$SHARE_METHOD" != "nat" && "$SHARE_METHOD" != "bridge" && "$SHARE_METHOD" != "none" ]]
 if (env.SHARE_METHOD !== `nat`) {
     await $`echo ERROR: Wrong Internet sharing method >&2`
     console.log(``)
@@ -1766,30 +1943,38 @@ if (env.SHARE_METHOD !== `nat`) {
     await $`exit 1`
 }
 
+// [[ -n "$NEW_MACADDR" ]]
 if (env.NEW_MACADDR.length > 0) {
-    if (!`${await $`is_macaddr ${env.NEW_MACADDR}`.text()}`) {
+    // ! is_macaddr "$NEW_MACADDR"
+    if ((await is_macaddr(env.NEW_MACADDR)) != 0) {
         await $`echo ERROR: '$NEW_MACADDR' is not a valid MAC address >&2`
         await $`exit 1`
     }
 
-    if (!`${await $`is_unicast_macaddr ${env.NEW_MACADDR}`.text()}`) {
+    // ! is_unicast_macaddr "$NEW_MACADDR"
+    if ((await is_unicast_macaddr(env.NEW_MACADDR)) != 0) {
         await $`echo ERROR: The first byte of MAC address ($NEW_MACADDR) must be even >&2`
         await $`exit 1`
     }
 
+    // [[ $(get_all_macaddrs | grep -c ${NEW_MACADDR}) -ne 0 ]]
     if (0 != 0) {
         await $`echo WARN: MAC address '$NEW_MACADDR' already exists. Because of this, you may encounter some problems >&2`
     }
 }
 
+// [[ "$SHARE_METHOD" != "none" ]]
 if (env.SHARE_METHOD !== `none`) {
     env.MIN_REQUIRED_ARGS = 2
 } else {
     env.MIN_REQUIRED_ARGS = 1
 }
 
+// [[ $# -gt $MIN_REQUIRED_ARGS ]]
 if (env["#"] > env.MIN_REQUIRED_ARGS) {
+    // [[ "$SHARE_METHOD" != "none" ]]
     if (env.SHARE_METHOD !== `none`) {
+        // [[ $# -ne 3 && $# -ne 4 ]]
         if (env["#"] != 3) {
             await $`usage >&2`
             await $`exit 1`
@@ -1798,6 +1983,7 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
         env.SSID = env["3"]
         env.PASSPHRASE = env["4"]
     } else {
+        // [[ $# -ne 2 && $# -ne 3 ]]
         if (env["#"] != 2) {
             await $`usage >&2`
             await $`exit 1`
@@ -1806,17 +1992,21 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
         env.PASSPHRASE = env["3"]
     }
 } else {
+    // [[ "$SHARE_METHOD" != "none" ]]
     if (env.SHARE_METHOD !== `none`) {
+        // [[ $# -ne 2 ]]
         if (env["#"] != 2) {
             await $`usage >&2`
             await $`exit 1`
         }
         env.INTERNET_IFACE = env["2"]
     }
-    if (`${await $`tty -s`.text()}`) {
+    // tty -s
+    if ((await $`tty -s`).code==0)) {
         while (true) {
 
             env.SSID = prompt(SSID: )
+            // [[ ${#SSID} -lt 1 || ${#SSID} -gt 32 ]]
             if (0 < 1) {
                 await $`echo ERROR: Invalid SSID length $SSID (expected 1..32) >&2`
                 continue
@@ -1826,15 +2016,18 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
         }
         while (true) {
 
+            // [[ $USE_PSK -eq 0 ]]
             if (env.USE_PSK == 0) {
                 env.PASSPHRASE = prompt(Passphrase: )
                 console.log(``)
-                if (`${await $`[[ ${#PASSPHRASE} -gt 0 && ${#PASSPHRASE} -lt 8 ]] || [[ ${#PASSPHRASE} -gt 63 ]]`.text()}`) {
+                // [[ ${#PASSPHRASE} -gt 0 && ${#PASSPHRASE} -lt 8 ]] || [[ ${#PASSPHRASE} -gt 63 ]]
+                if ((await $`[[ \${#PASSPHRASE} -gt 0 && \${#PASSPHRASE} -lt 8 ]] || [[ \${#PASSPHRASE} -gt 63 ]]`).code==0)) {
                     await $`echo ERROR: Invalid passphrase length $PASSPHRASE (expected 8..63) >&2`
                     continue
                 }
                 env.PASSPHRASE2 = prompt(Retype passphrase: )
                 console.log(``)
+                // [[ "$PASSPHRASE" != "$PASSPHRASE2" ]]
                 if (env.PASSPHRASE !== env.PASSPHRASE2) {
                     console.log(`Passphrases do not match.`)
                 } else {
@@ -1843,6 +2036,7 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
             } else {
                 env.PASSPHRASE = prompt(PSK: )
                 console.log(``)
+                // [[ ${#PASSPHRASE} -gt 0 && ${#PASSPHRASE} -ne 64 ]]
                 if (0 > 0) {
                     await $`echo ERROR: Invalid pre-shared-key length $PASSPHRASE (expected 64) >&2`
                     continue
@@ -1856,27 +2050,34 @@ if (env["#"] > env.MIN_REQUIRED_ARGS) {
     }
 }
 
-if (`${await $`[[ "$SHARE_METHOD" != "none" ]] && ! is_interface ${env.INTERNET_IFACE}`.text()}`) {
+// [[ "$SHARE_METHOD" != "none" ]] && ! is_interface $INTERNET_IFACE
+if ((await $`[[ "$SHARE_METHOD" != "none" ]] && ! is_interface ${env.INTERNET_IFACE}`).code==0)) {
     await $`echo ERROR: '$INTERNET_IFACE' is not an interface >&2`
     await $`exit 1`
 }
 
+// [[ ${#SSID} -lt 1 || ${#SSID} -gt 32 ]]
 if (0 < 1) {
     await $`echo ERROR: Invalid SSID length $SSID (expected 1..32) >&2`
     await $`exit 1`
 }
 
+// [[ $USE_PSK -eq 0 ]]
 if (env.USE_PSK == 0) {
-    if (`${await $`[[ ${#PASSPHRASE} -gt 0 && ${#PASSPHRASE} -lt 8 ]] || [[ ${#PASSPHRASE} -gt 63 ]]`.text()}`) {
+    // [[ ${#PASSPHRASE} -gt 0 && ${#PASSPHRASE} -lt 8 ]] || [[ ${#PASSPHRASE} -gt 63 ]]
+    if ((await $`[[ \${#PASSPHRASE} -gt 0 && \${#PASSPHRASE} -lt 8 ]] || [[ \${#PASSPHRASE} -gt 63 ]]`).code==0)) {
         await $`echo ERROR: Invalid passphrase length $PASSPHRASE (expected 8..63) >&2`
         await $`exit 1`
     }
+// [[ ${#PASSPHRASE} -gt 0 && ${#PASSPHRASE} -ne 64 ]]
 } else if (0 > 0) {
     await $`echo ERROR: Invalid pre-shared-key length $PASSPHRASE (expected 64) >&2`
     await $`exit 1`
 }
 
+// [[ $(get_adapter_kernel_module ${WIFI_IFACE}) =~ ^rtl[0-9].*$ ]]
 if (0.match(/^rtl[0-9].*\$/)) {
+    // [[ -n "$PASSPHRASE" ]]
     if (env.PASSPHRASE.length > 0) {
         await $`echo WARN: Realtek drivers usually have problems with WPA1, enabling -w 2 >&2`
         env.WPA_VERSION = 2
@@ -1884,13 +2085,14 @@ if (0.match(/^rtl[0-9].*\$/)) {
     await $`echo WARN: If AP doesn't work, please read: howto/realtek.md >&2`
 }
 
+// [[ $NO_VIRT -eq 1 && "$WIFI_IFACE" == "$INTERNET_IFACE" ]]
 if (env.NO_VIRT == 1) {
     await $`echo -n ERROR: You can not share your connection from the same >&2`
     await $`echo  interface if you are using --no-virt option. >&2`
     await $`exit 1`
 }
 
-await $`mutex_lock`
+await mutex_lock()
 await $`trap cleanup EXIT`
 env.CONFDIR = await $.str`mktemp -d /tmp/create_ap.$WIFI_IFACE.conf.XXXXXXXX`
 console.log(`Config dir: ${env.CONFDIR}`)
@@ -1905,52 +2107,63 @@ await $`chmod 444 ${env.CONFDIR}/pid`
 env.COMMON_CONFDIR = `/tmp/create_ap.common.conf`
 await $`mkdir -p ${env.COMMON_CONFDIR}`
 
+// [[ "$SHARE_METHOD" == "nat" ]]
 if (env.SHARE_METHOD === `nat`) {
     await $`echo ${env.INTERNET_IFACE} > $CONFDIR/nat_internet_iface`
-    await $`cp_n /proc/sys/net/ipv4/conf/${env.INTERNET_IFACE}/forwarding ${env.COMMON_CONFDIR}/$INTERNET_IFACE_forwarding`
+    await cp_n(`/proc/sys/net/ipv4/conf/${env.INTERNET_IFACE}/forwarding`, `${env.COMMON_CONFDIR}/$INTERNET_IFACE_forwarding`, )
 }
-await $`cp_n /proc/sys/net/ipv4/ip_forward ${env.COMMON_CONFDIR}`
+await cp_n(`/proc/sys/net/ipv4/ip_forward`, env.COMMON_CONFDIR, )
+// [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]]
 if (fs.existsSync(`/proc/sys/net/bridge/bridge-nf-call-iptables`)) {
-    await $`cp_n /proc/sys/net/bridge/bridge-nf-call-iptables ${env.COMMON_CONFDIR}`
+    await cp_n(`/proc/sys/net/bridge/bridge-nf-call-iptables`, env.COMMON_CONFDIR, )
 }
-await $`mutex_unlock`
+await mutex_unlock()
 
+// [[ "$SHARE_METHOD" == "bridge" ]]
 if (env.SHARE_METHOD === `bridge`) {
-    if (`${await $`is_bridge_interface ${env.INTERNET_IFACE}`.text()}`) {
+    // is_bridge_interface $INTERNET_IFACE
+    if ((await is_bridge_interface(env.INTERNET_IFACE)) == 0) {
         env.BRIDGE_IFACE = env.INTERNET_IFACE
     } else {
         env.BRIDGE_IFACE = await $.str`alloc_new_iface br`
     }
 }
 
+// [[ $USE_IWCONFIG -eq 0 ]]
 if (env.USE_IWCONFIG == 0) {
     await $`iw dev  set power_save off`
 }
 
+// [[ $NO_VIRT -eq 0 ]]
 if (env.NO_VIRT == 0) {
     env.VWIFI_IFACE = await $.str`alloc_new_iface ap`
 
     // in NetworkManager 0.9.9 and above we can set the interface as unmanaged without
     // the need of MAC address, so we set it before we create the virtual interface.
-    if (`${await $`networkmanager_is_running && [[ $NM_OLDER_VERSION -eq 0 ]]`.text()}`) {
+    // networkmanager_is_running && [[ $NM_OLDER_VERSION -eq 0 ]]
+    if ((await $`networkmanager_is_running && [[ $NM_OLDER_VERSION -eq 0 ]]`).code==0)) {
         console.log(`-n Network Manager found, set $VWIFI_IFACE as unmanaged device... `)
-        await $`networkmanager_add_unmanaged `
+        await networkmanager_add_unmanaged(env.VWIFI_IFACE)
         // do not call networkmanager_wait_until_unmanaged because interface does not
         // exist yet
         console.log(`DONE`)
     }
 
 
-    if (`${await $`is_wifi_connected  && [[ $FREQ_BAND_SET -eq 0 ]]`.text()}`) {
+    // is_wifi_connected ${WIFI_IFACE} && [[ $FREQ_BAND_SET -eq 0 ]]
+    if ((await $`is_wifi_connected  && [[ $FREQ_BAND_SET -eq 0 ]]`).code==0)) {
         env.WIFI_IFACE_FREQ = await $.str`iw dev  link | grep -i freq | awk {print $2}`
         env.WIFI_IFACE_CHANNEL = await $.str`ieee80211_frequency_to_channel `
         console.log(`-n $WIFI_IFACE is already associated with channel $WIFI_IFACE_CHANNEL ($WIFI_IFACE_FREQ MHz)`)
-        if (`${await $`is_5ghz_frequency ${env.WIFI_IFACE_FREQ}`.text()}`) {
+        // is_5ghz_frequency $WIFI_IFACE_FREQ
+        if ((await is_5ghz_frequency(env.WIFI_IFACE_FREQ)) == 0) {
             env.FREQ_BAND = 5
         } else {
             env.FREQ_BAND = `2.4`
         }
+        // [[ $WIFI_IFACE_CHANNEL -ne $CHANNEL ]]
         if (env.WIFI_IFACE_CHANNEL != env.CHANNEL) {
+            // ( get_adapter_info ${IFACE} | grep "#channels <= 2" -q )
             if (undefined) {
                 console.log(`-e \nmultiple channels supported`)
             } else {
@@ -1961,7 +2174,8 @@ if (env.NO_VIRT == 0) {
         } else {
             console.log(`channel------------------ $CHANNEL`)
         }
-    } else if (`${await $`is_wifi_connected  && [[ $FREQ_BAND_SET -eq 1 ]]`.text()}`) {
+    // is_wifi_connected ${WIFI_IFACE} && [[ $FREQ_BAND_SET -eq 1 ]]
+    } else if ((await $`is_wifi_connected  && [[ $FREQ_BAND_SET -eq 1 ]]`).code==0)) {
         console.log(`Custom frequency band set with $FREQ_BANDGhz with channel $CHANNEL`)
     }
 
@@ -1970,15 +2184,17 @@ if (env.NO_VIRT == 0) {
        Try again with --no-virt." */0
     console.log(`-n Creating a virtual WiFi interface... `)
 
-    if (`${await $`iw dev  interface add  type __ap`.text()}`) {
+    // iw dev ${WIFI_IFACE} interface add ${VWIFI_IFACE} type __ap
+    if ((await $`iw dev  interface add  type __ap`).code==0)) {
         // now we can call networkmanager_wait_until_unmanaged
         await $`networkmanager_is_running && [[ $NM_OLDER_VERSION -eq 0 ]] && networkmanager_wait_until_unmanaged `
         console.log(`$VWIFI_IFACE created.`)
     } else {
         env.VWIFI_IFACE = ""
-        await $`die ${env.VIRTDIEMSG}`
+        await die(env.VIRTDIEMSG)
     }
     env.OLD_MACADDR = await $.str`get_macaddr `
+    // [[ -z "$NEW_MACADDR" && $(get_all_macaddrs | grep -c ${OLD_MACADDR}) -ne 1 ]]
     if (env.NEW_MACADDR.length == 0) {
         env.NEW_MACADDR = await $.str`get_new_macaddr `
     }
@@ -1987,35 +2203,40 @@ if (env.NO_VIRT == 0) {
     env.OLD_MACADDR = await $.str`get_macaddr `
 }
 
-await $`mutex_lock`
+await mutex_lock()
 await $`echo ${env.WIFI_IFACE} > $CONFDIR/wifi_iface`
 await $`chmod 444 ${env.CONFDIR}/wifi_iface`
-await $`mutex_unlock`
+await mutex_unlock()
 
+// [[ -n "$COUNTRY" && $USE_IWCONFIG -eq 0 ]]
 if (env.COUNTRY.length > 0) {
     await $`iw reg set ${env.COUNTRY}`
 }
 
 // Fallback to currently connected channel if the adapter can not transmit to the default channel (1)
-if (`${await $`can_transmit_to_channel  `.text()}`) {
+// can_transmit_to_channel "${WIFI_IFACE}" "${CHANNEL}"
+if ((await can_transmit_to_channel(env.WIFI_IFACE, env.CHANNEL, )) == 0) {
     console.log(`Transmitting to channel $CHANNEL...`)
 } else {
+    // [[ $USING_DEFAULT_CHANNEL -eq 1 && $WIFI_IFACE_CHANNEL -ne $CHANNEL ]]
     if (env.USING_DEFAULT_CHANNEL == 1) {
         await $`echo -e Your adapter can not transmit to channel $CHANNEL >&2`
         env.CHANNEL = env.WIFI_IFACE_CHANNEL
         console.log(`-e Falling back to channel $CHANNEL`)
         await $`can_transmit_to_channel   || die Your adapter can not transmit to channel $CHANNEL, frequency band $FREQ_BANDGHz.`
     } else {
-        await $`die Your adapter can not transmit to channel $CHANNEL, frequency band $FREQ_BANDGHz.`
+        await die(`Your adapter can not transmit to channel $CHANNEL, frequency band $FREQ_BANDGHz.`)
     }
 }
 
-if (`${await $`networkmanager_exists && ! networkmanager_iface_is_unmanaged `.text()}`) {
+// networkmanager_exists && ! networkmanager_iface_is_unmanaged ${WIFI_IFACE}
+if ((await $`networkmanager_exists && ! networkmanager_iface_is_unmanaged `).code==0)) {
     console.log(`-n Network Manager found, set $WIFI_IFACE as unmanaged device... `)
-    await $`networkmanager_add_unmanaged `
+    await networkmanager_add_unmanaged(env.WIFI_IFACE)
 
-    if (`${await $`networkmanager_is_running`.text()}`) {
-        await $`networkmanager_wait_until_unmanaged `
+    // networkmanager_is_running
+    if ((await networkmanager_is_running()) == 0) {
+        await networkmanager_wait_until_unmanaged(env.WIFI_IFACE)
     }
 
     console.log(`DONE`)
@@ -2030,50 +2251,62 @@ await $`[[ $ISOLATE_CLIENTS -eq 1 ]] && echo Access Point's clients will be isol
 // hostapd config
 await $`cat > $CONFDIR/hostapd.conf`
 
+// [[ -n "$COUNTRY" ]]
 if (env.COUNTRY.length > 0) {
     await $`cat >> $CONFDIR/hostapd.conf`
 }
 
+// [[ $FREQ_BAND == 2.4 ]]
 if (env.FREQ_BAND === 2.4) {
     await $`echo hw_mode=g >> $CONFDIR/hostapd.conf`
 } else {
     await $`echo hw_mode=a >> $CONFDIR/hostapd.conf`
 }
 
+// [[ $MAC_FILTER -eq 1 ]]
 if (env.MAC_FILTER == 1) {
     await $`cat >> $CONFDIR/hostapd.conf`
 }
 
+// [[ $IEEE80211N -eq 1 ]]
 if (env.IEEE80211N == 1) {
     await $`cat >> $CONFDIR/hostapd.conf`
 }
 
+// [[ $IEEE80211AC -eq 1 ]]
 if (env.IEEE80211AC == 1) {
     await $`echo ieee80211ac=1 >> $CONFDIR/hostapd.conf`
 }
 
+// [[ $IEEE80211AX -eq 1 ]]
 if (env.IEEE80211AX == 1) {
     await $`echo ieee80211ax=1 >> $CONFDIR/hostapd.conf`
 }
 
+// [[ -n "$VHT_CAPAB" ]]
 if (env.VHT_CAPAB.length > 0) {
     await $`echo vht_capab=$VHT_CAPAB >> $CONFDIR/hostapd.conf`
 }
 
-if (`${await $`[[ $IEEE80211N -eq 1 ]] || [[ $IEEE80211AC -eq 1 ]]`.text()}`) {
+// [[ $IEEE80211N -eq 1 ]] || [[ $IEEE80211AC -eq 1 ]]
+if ((await $`[[ $IEEE80211N -eq 1 ]] || [[ $IEEE80211AC -eq 1 ]]`).code==0)) {
     await $`echo wmm_enabled=1 >> $CONFDIR/hostapd.conf`
 }
 
+// [[ -n "$PASSPHRASE" ]]
 if (env.PASSPHRASE.length > 0) {
+    // [[ "$WPA_VERSION" == "1+2" ]]
     if (env.WPA_VERSION === `1+2`) {
         env.WPA_VERSION = 2 // Assuming you want to default to WPA2 for the "1+2" setting
     }
+    // [[ $USE_PSK -eq 0 ]]
     if (env.USE_PSK == 0) {
         env.WPA_KEY_TYPE = `passphrase`
     } else {
         env.WPA_KEY_TYPE = `psk`
     }
 
+    // [[ "$WPA_VERSION" == "3" ]]
     if (env.WPA_VERSION === 3) {
         // Configuring for WPA3 Transition Mode
         // 80211w must be 1 or Apple Devices will not connect. 
@@ -2086,17 +2319,21 @@ if (env.PASSPHRASE.length > 0) {
 }
 
 
+// [[ "$SHARE_METHOD" == "bridge" ]]
 if (env.SHARE_METHOD === `bridge`) {
     await $`echo bridge=$BRIDGE_IFACE >> $CONFDIR/hostapd.conf`
+// [[ $NO_DNSMASQ -eq 0 ]]
 } else if (env.NO_DNSMASQ == 0) {
     // dnsmasq config (dhcp + dns)
     env.DNSMASQ_VER = await $.str`dnsmasq -v | grep -m1 -oE [0-9]+(\\.[0-9]+)*\\.[0-9]+`
-    await $`version_cmp ${env.DNSMASQ_VER} 2.63`
+    await version_cmp(env.DNSMASQ_VER, `2.63`, )
+    // [[ $? -eq 1 ]]
     if (env["?"] == 1) {
         env.DNSMASQ_BIND = `bind-interfaces`
     } else {
         env.DNSMASQ_BIND = `bind-dynamic`
     }
+    // [[ "$DHCP_DNS" == "gateway" ]]
     if (env.DHCP_DNS === `gateway`) {
         env.DHCP_DNS = env.GATEWAY
     }
@@ -2105,8 +2342,10 @@ if (env.SHARE_METHOD === `bridge`) {
     await $`[[ -n "$MTU" ]] && echo dhcp-option-force=option:mtu,$MTU >> $CONFDIR/dnsmasq.conf`
     await $`[[ $ETC_HOSTS -eq 0 ]] && echo no-hosts >> $CONFDIR/dnsmasq.conf`
     await $`[[ -n "$ADDN_HOSTS" ]] && echo addn-hosts=$ADDN_HOSTS >> $CONFDIR/dnsmasq.conf`
+    // [[ -n "$DHCP_HOSTS" ]]
     if (env.DHCP_HOSTS.length > 0) {
-        for (env.HOST of (`${env.DHCP_HOSTS}`).split(/s+/g)) {
+        // for HOST in $DHCP_HOSTS; 
+        for (env.HOST of iterateOver(env.DHCP_HOSTS)) {
 
             await $`echo dhcp-host=$HOST >> $CONFDIR/dnsmasq.conf`
         
@@ -2114,15 +2353,18 @@ if (env.SHARE_METHOD === `bridge`) {
     }
 
 
+    // [[ -n "$DNS_LOGFILE" ]]
     if (env.DNS_LOGFILE.length > 0) {
         await $`cat >> $CONFDIR/dnsmasq.conf`
     }
+    // [[ "$SHARE_METHOD" == "none" && "$REDIRECT_TO_LOCALHOST" == "1" ]]
     if (env.SHARE_METHOD === `none`) {
         await $`cat >> $CONFDIR/dnsmasq.conf`
     }
 }
 
 // initialize WiFi interface
+// [[ $NO_VIRT -eq 0 && -n "$NEW_MACADDR" ]]
 if (env.NO_VIRT == 0) {
     await $`ip link set dev  address  || die ${env.VIRTDIEMSG}`
 }
@@ -2130,18 +2372,22 @@ if (env.NO_VIRT == 0) {
 await $`ip link set down dev  || die ${env.VIRTDIEMSG}`
 await $`ip addr flush  || die ${env.VIRTDIEMSG}`
 
+// [[ $NO_VIRT -eq 1 && -n "$NEW_MACADDR" ]]
 if (env.NO_VIRT == 1) {
     await $`ip link set dev  address  || die`
 }
 
+// [[ "$SHARE_METHOD" != "bridge" ]]
 if (env.SHARE_METHOD !== `bridge`) {
     await $`ip link set up dev  || die ${env.VIRTDIEMSG}`
     await $`ip addr add $GATEWAY/24 broadcast $GATEWAY.255 dev  || die ${env.VIRTDIEMSG}`
 }
 
 // enable Internet sharing
+// [[ "$SHARE_METHOD" != "none" ]]
 if (env.SHARE_METHOD !== `none`) {
     console.log(`Sharing Internet using method: ${env.SHARE_METHOD}`)
+    // [[ "$SHARE_METHOD" == "nat" ]]
     if (env.SHARE_METHOD === `nat`) {
         await $`iptables -w -t nat -I POSTROUTING -s $GATEWAY.0/24 ! -o  -j MASQUERADE || die`
         await $`iptables -w -I FORWARD -i  -s $GATEWAY.0/24 -j ACCEPT || die`
@@ -2151,8 +2397,10 @@ if (env.SHARE_METHOD !== `none`) {
         // to enable clients to establish PPTP connections we must
         // load nf_nat_pptp module
         await $`modprobe nf_nat_pptp`.stdout(...$stdout)
+    // [[ "$SHARE_METHOD" == "bridge" ]]
     } else if (env.SHARE_METHOD === `bridge`) {
         // disable iptables rules for bridged interfaces
+        // [[ -e /proc/sys/net/bridge/bridge-nf-call-iptables ]]
         if (fs.existsSync(`/proc/sys/net/bridge/bridge-nf-call-iptables`)) {
             await $`echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables`
         }
@@ -2166,7 +2414,8 @@ if (env.SHARE_METHOD !== `none`) {
         //
         // we need the above because BRIDGE_IFACE is the master interface from now on
         // and it must know where is connected, otherwise connection is lost.
-        if (!`${await $`is_bridge_interface ${env.INTERNET_IFACE}`.text()}`) {
+        // ! is_bridge_interface $INTERNET_IFACE
+        if ((await is_bridge_interface(env.INTERNET_IFACE)) != 0) {
             console.log(`-n Create a bridge interface... `)
             env.OLD_IFS = env.IFS
             env.IFS = `
@@ -2177,9 +2426,10 @@ if (env.SHARE_METHOD !== `none`) {
 
             env.IFS = env.OLD_IFS
 
-            if (`${await $`networkmanager_is_running`.text()}`) {
-                await $`networkmanager_add_unmanaged ${env.INTERNET_IFACE}`
-                await $`networkmanager_wait_until_unmanaged ${env.INTERNET_IFACE}`
+            // networkmanager_is_running
+            if ((await networkmanager_is_running()) == 0) {
+                await networkmanager_add_unmanaged(env.INTERNET_IFACE)
+                await networkmanager_wait_until_unmanaged(env.INTERNET_IFACE)
             }
 
             // create bridge interface
@@ -2194,7 +2444,8 @@ if (env.SHARE_METHOD !== `none`) {
             await $`ip link set dev ${env.INTERNET_IFACE} master ${env.BRIDGE_IFACE} || die`
 
             await $`ip addr flush ${env.INTERNET_IFACE}`
-            for (env.x of (``).split(/s+/g)) {
+            // for x in "${IP_ADDRS[@]}"; 
+            for (env.x of iterateOver(env.IP_ADDRS/* FIXME: IP_ADDRS[@] */)) {
 
                 env.x = env.x/* FIXME: x/inet/ */
                 env.x = env.x/* FIXME: x/secondary/ */
@@ -2211,8 +2462,10 @@ if (env.SHARE_METHOD !== `none`) {
 
             // we must first add the entries that specify the subnets and then the
             // gateway entry, otherwise 'ip addr add' will return an error
-            for (env.x of (``).split(/s+/g)) {
+            // for x in "${ROUTE_ADDRS[@]}"; 
+            for (env.x of iterateOver(env.ROUTE_ADDRS/* FIXME: ROUTE_ADDRS[@] */)) {
 
+                // [[ "$x" == default* ]]
                 if (env.x === `default*`) {
                     continue
                 }
@@ -2220,8 +2473,10 @@ if (env.SHARE_METHOD !== `none`) {
             
             }
 
-            for (env.x of (``).split(/s+/g)) {
+            // for x in "${ROUTE_ADDRS[@]}"; 
+            for (env.x of iterateOver(env.ROUTE_ADDRS/* FIXME: ROUTE_ADDRS[@] */)) {
 
+                // [[ "$x" != default* ]]
                 if (env.x !== `default*`) {
                     continue
                 }
@@ -2237,7 +2492,9 @@ if (env.SHARE_METHOD !== `none`) {
 }
 
 // start dhcp + dns (optional)
+// [[ "$SHARE_METHOD" != "bridge" ]]
 if (env.SHARE_METHOD !== `bridge`) {
+    // [[ $NO_DNS -eq 0 ]]
     if (env.NO_DNS == 0) {
         env.DNS_PORT = 5353
         await $`iptables -w -I INPUT -p tcp -m tcp --dport ${env.DNS_PORT} -j ACCEPT || die`
@@ -2248,6 +2505,7 @@ if (env.SHARE_METHOD !== `bridge`) {
         env.DNS_PORT = 0
     }
 
+    // [[ $NO_DNSMASQ -eq 0 ]]
     if (env.NO_DNSMASQ == 0) {
       await $`iptables -w -I INPUT -p udp -m udp --dport 67 -j ACCEPT || die`
 
@@ -2255,6 +2513,7 @@ if (env.SHARE_METHOD !== `bridge`) {
       // apparmor does not allow dnsmasq to read files.
       // remove restriction.
 
+      // COMPLAIN_CMD=$(command -v complain || command -v aa-complain)
       if (env.COMPLAIN_CMD = await $.str`command -v complain || command -v aa-complain`) {
         await $`${env.COMPLAIN_CMD} dnsmasq`
       }
@@ -2268,13 +2527,15 @@ if (env.SHARE_METHOD !== `bridge`) {
 // start access point
 console.log(`hostapd command-line interface: hostapd_cli -p ${env.CONFDIR}/hostapd_ctrl`)
 
+// [[ $NO_HAVEGED -eq 0 ]]
 if (env.NO_HAVEGED == 0) {
-    await $`haveged_watchdog` /* FIXME: & */0
+    await haveged_watchdog() /* FIXME: & */0
     env.HAVEGED_WATCHDOG_PID = env["!"]
 }
 
 // start hostapd (use stdbuf when available for no delayed output in programs that redirect stdout)
 env.STDBUF_PATH = await $.str`which stdbuf`
+// [ $? -eq 0 ]
 if (env["?"] == 0) {
     env.STDBUF_PATH = `${env.STDBUF_PATH} -oL`
 }
@@ -2282,12 +2543,15 @@ await $`${env.STDBUF_PATH} ${env.HOSTAPD} ${env.HOSTAPD_DEBUG_ARGS} ${env.CONFDI
 env.HOSTAPD_PID = env["!"]
 await $`echo ${env.HOSTAPD_PID} > $CONFDIR/hostapd.pid`
 
-if (!`${await $`wait ${env.HOSTAPD_PID}`.text()}`) {
+// ! wait $HOSTAPD_PID
+if ((await $`wait ${env.HOSTAPD_PID}`).code!=0)) {
     await $`echo -e 
 Error: Failed to run hostapd, maybe a program is interfering. >&2`
-    if (`${await $`networkmanager_is_running`.text()}`) {
+    // networkmanager_is_running
+    if ((await networkmanager_is_running()) == 0) {
         await $`echo If an error like 'n80211: Could not configure driver mode' was thrown >&2`
         await $`echo try running the following before starting create_ap: >&2`
+        // [[ $NM_OLDER_VERSION -eq 1 ]]
         if (env.NM_OLDER_VERSION == 1) {
             await $`echo     nmcli nm wifi off >&2`
         } else {
@@ -2295,10 +2559,10 @@ Error: Failed to run hostapd, maybe a program is interfering. >&2`
         }
         await $`echo     rfkill unblock wlan >&2`
     }
-    await $`die`
+    await die()
 }
 
-await $`clean_exit`
+await clean_exit()
 
 // Local Variables:
 // tab-width: 4

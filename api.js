@@ -393,7 +393,7 @@ const unifyArgs = (args, { translateInner }) => {
             output.asJsArray = ()=>"["+aggregatedArgs.map(each=>each.asJsValue+", ").join("")+"]"
         }
     }
-    return output
+    return autofillOutputForms(output)
 }
 
 const convertArgsCreator = (recursiveParts)=>(nodes, {asArrayString=false, asArray=false, toJsValue=false, debug=false, context=null} = {}) => {
@@ -436,7 +436,7 @@ const convertArgsCreator = (recursiveParts)=>(nodes, {asArrayString=false, asArr
 
 export function translate(code, { withHeader=true }={}) {
     const node = parser.parse(code).rootNode
-    
+    let functionNames = []
     let usedExitCodeOfLastChildProcess = false
 
     // extra: these are (mostly) kept track of, but currently do not change the output
@@ -639,7 +639,7 @@ export function translate(code, { withHeader=true }={}) {
                     `${hadShebang}import fs from "node:fs"`,
                     `import * as dax from "https://esm.sh/@jsr/david__dax@0.43.2/mod.ts" // see: https://github.com/dsherret/dax`,
                     `import * as path from "https://esm.sh/jsr/@std/path@1.1.2"`,
-                    `import { env, aliases, $stdout, $stderr, initHelpers } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"`,
+                    `import { env, aliases, $stdout, $stderr, initHelpers, iterateOver } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.0/helpers.js"`,
                     `const { $, appendTo, overwrite, hasCommand, makeScope, settings } = initHelpers({ dax })`,
                 ]
                 return header.join("\n")+"\n"+contents
@@ -726,7 +726,13 @@ export function translate(code, { withHeader=true }={}) {
             // command/alias
             // 
             } else if (node.type == "negated_command") {
-                let translated = translateInner(node.quickQueryFirst(`(command)`))
+                let commandNode = node.quickQueryFirst(`(command)`)
+                commandNode ||= node.quickQueryFirst(`(test_command)`)
+                if (!commandNode) {
+                    console.warn(`[translateInner] failed to find negated_command node in:`,xmlStylePreview(node))
+                    return fallbackTranslate(node)
+                }
+                let translated = translateInner(commandNode)
                 return {
                     asDaxCommandInnardsPure: ()=>`! ${translated.asDaxCommandInnardsPure}`,
                     asJsConditional: translated.asNegatedJsConditional,
@@ -816,28 +822,26 @@ export function translate(code, { withHeader=true }={}) {
                     return { asJsConditional: `false`, asJsStatement: `false`, asJsValue: `false`, asDaxCommandInnardsPure: `false`, asJsBacktickStringInnards: `false`, asJsNumber: "0" }
                 } else if (commandNameNode.text == "basename") {
                     const uniArgs = unifyArgs(argNodes, { translateInner })
-                    console.debug(`uniArgs is:`,uniArgs)
                     const convertedArgs = convertArgs([ commandNameNode, ...argNodes ])
                     if (convertedArgs == null) {
                         return fallbackTranslate(node)
                     }
-                    const asDaxCommandInnardsPure = `<basename>${getEnvPrefix()+convertedArgs.slice(1,-1)}</basename>`
+                    const asDaxCommandInnardsPure = `${getEnvPrefix()+convertedArgs.slice(1,-1)}`
                     const output = {
                         asDaxCommandInnardsPure,
                         asJsValue: uniArgs.asJsValue ? `path.basename(${uniArgs.asJsValue})` : null, 
                         // asJsStatement: `await $\`${asDaxCommandInnardsPure}\``,
                         asDaxCallToSub: uniArgs.asJsValue ? `path.basename(${uniArgs.asJsValue})` : null,
-                        asJsBacktickStringInnards: `<-1>${`path.basename(${uniArgs.asJsValue})`}<-1>`
+                        asJsBacktickStringInnards: `${`path.basename(${uniArgs.asJsValue})`}`
                     }
                     return output
                 } else if (commandNameNode.text == "dirname") {
                     const uniArgs = unifyArgs(argNodes, { translateInner })
-                    console.debug(`uniArgs is:`,uniArgs)
                     const convertedArgs = convertArgs([ commandNameNode, ...argNodes ])
                     if (convertedArgs == null) {
                         return fallbackTranslate(node)
                     }
-                    const asDaxCommandInnardsPure = `<dirname>${getEnvPrefix()+convertedArgs.slice(1,-1)}</dirname>`
+                    const asDaxCommandInnardsPure = `${getEnvPrefix()+convertedArgs.slice(1,-1)}`
                     const output = {
                         asDaxCommandInnardsPure,
                         asJsValue: uniArgs.asJsValue ? `path.dirname(${uniArgs.asJsValue})` : null,
@@ -880,6 +884,19 @@ export function translate(code, { withHeader=true }={}) {
                         },
                         asJsStatement,
                     }
+                } else if (functionNames.includes(commandNameNode.text)) {
+                    const uniArgs = unifyArgs(argNodes, { translateInner })
+                    const convertedArgs = convertArgs([ commandNameNode, ...argNodes ])
+                    if (convertedArgs == null) {
+                        return fallbackTranslate(node)
+                    }
+                    const asDaxCommandInnardsPure = `${getEnvPrefix()+convertedArgs.slice(1,-1)}`
+                    return { 
+                        asDaxCommandInnardsPure,
+                        asJsConditional: `(await ${commandNameNode.text}(${uniArgs.asJsArray.slice(1,-1)})) == 0`,
+                        asNegatedJsConditional: `(await ${commandNameNode.text}(${uniArgs.asJsArray.slice(1,-1)})) != 0`,
+                        asJsStatement: `await ${commandNameNode.text}(${uniArgs.asJsArray.slice(1,-1)})` 
+                    }
                 } else {
                     const convertedArgs = convertArgs([ commandNameNode, ...argNodes ])
                     if (convertedArgs == null) {
@@ -898,7 +915,8 @@ export function translate(code, { withHeader=true }={}) {
                 // FIXME: this is temporary
                 return {
                     asJsValue,
-                    asDaxCommandInnardsPure: ()=>node.text,
+                    asJsConditional: asJsValue,
+                    asDaxCommandInnardsPure: ()=>escapeJsString(node.text).slice(1,-1),
                 }
             // 
             // redirection
@@ -1133,13 +1151,28 @@ export function translate(code, { withHeader=true }={}) {
                     // }
                     
                     // this is not a hack, its a clever way to translate problems like "&& continue" (which wouldn't work in JS as-is)
-                    if (match=node.text.match(/^(.+)\s+(\&\&|\|\|)\s+(continue|break|return\s+(.+))$/)) {
+                    if (match=node.text.match(/^(.+)\s+(\&\&|\|\|)\s+(continue|break|return(?:\s+(.+))?)$/)) {
                         const negateString = match[2] == "&&" ? "" : " ! "
                         let madeUp
-                        // convert to if statement so that things like "[[ ]] && break" work (otherwise the break will fail)
-                        const output = translateInner(parser.parse(madeUp=`\n${node.indent}if ${negateString} ${match[1]}; then\n${node.indent}    ${match[3]}\n${node.indent}fi\n`, {context: "list"}).rootNode.quickQueryFirst(`(if_statement)`))
-                        // console.debug(`madeUp is:`,madeUp)
-                        return output
+                        try {
+                            madeUp=`\n${node.indent}if ${negateString} ${match[1]}; then\n${node.indent}    ${match[3]}\n${node.indent}fi\n`
+                            const rootNode = parser.parse(
+                                madeUp, {context: "list"}
+                            ).rootNode
+                            const ifStatement = rootNode.quickQueryFirst(`(if_statement)`)
+                            if (!ifStatement) {
+                                console.debug(`&& return hack: xmlStylePreview(rootNode) is:`,xmlStylePreview(rootNode))
+                            }
+                            // convert to if statement so that things like "[[ ]] && break" work (otherwise the break will fail)
+                            const output = translateInner(
+                                ifStatement
+                            )
+                            // console.debug(`madeUp is:`,madeUp)
+                            return output
+                        } catch (error) {
+                            console.debug(`madeUp is:`,madeUp)
+                            console.warn(`[translateInner] failed to handle && return:`,error.stack)
+                        }
                     }
                     
                     // FIXME: <compound_statement> probably could appear here
@@ -1244,7 +1277,8 @@ export function translate(code, { withHeader=true }={}) {
                         const translatedNodes = conditionNodes.map(each=>translateInner(each, {context:"if_condition"}))
                         if (translatedNodes.length == 1) {
                             chunks.push(
-                                `if (${translatedNodes[0].asJsValue}) {\n`
+                                `// ${conditionNodes[0].text}\n`,
+                                `${conditionNodes[0].indent}if (${translatedNodes[0].asJsConditional||translatedNodes[0].asDaxCallSuccess||translatedNodes[0].asJsValue}) {\n`
                             )
                             continue
                         }
@@ -1307,7 +1341,8 @@ export function translate(code, { withHeader=true }={}) {
                                     const translatedNodes = conditionNodes.map(each=>translateInner(each, {context:"if_condition"}))
                                     if (translatedNodes.length == 1) {
                                         chunks.push(
-                                            `\n${node.indent}} else if (${translatedNodes[0].asJsValue}) {\n`
+                                            `\n${node.indent}// ${conditionNodes[0].text}`,
+                                            `\n${node.indent}} else if (${translatedNodes[0].asJsConditional||translatedNodes[0].asDaxCallSuccess||translatedNodes[0].asJsValue}) {\n`
                                         )
                                         continue
                                     }
@@ -1494,7 +1529,7 @@ export function translate(code, { withHeader=true }={}) {
                 return `\n${node.indent}}`
             } else if (node.type == "do_group") {
                 return node.children.map(each=>translateInner(each, { context: "do_group" })).join("")
-            } else if (node.type == "for_statement") {
+            } else if (node.type == "for_statement"||node.type =="c_style_for_statement") {
                 let nodes = []
                 let foundGroup = false
                 for (const each of node.children) {
@@ -1521,7 +1556,9 @@ export function translate(code, { withHeader=true }={}) {
                         const [ , start, end ] = inExpr.match(/^{(\d+)\.\.(\d+)}$/)
                         front = `for (${accessEnvVar(varName)} = ${start}; ${accessEnvVar(varName)} <= ${end}; ${accessEnvVar(varName)}++) `
                     } else {
-                        front = `for (${accessEnvVar(varName)} of (${convertArgs(inExpr, { toJsValue: true })}).split(/\s+/g)) `
+                        const commandLike = node.children.filter(each=>!(["for","in","whitespace","comment","variable_name"].includes(each.type)))[0]
+                        const translated = translateInner(commandLike, { context: "for_loop" })
+                        front = `// ${nodes.map(each=>each.text).join("")}\n${node.indent}for (${accessEnvVar(varName)} of iterateOver(${translated.asJsStringValue||translated.asJsValue})) `
                     }
                 }
                 // TODO: for loops that use brackets instead of "do ... done"
@@ -1563,6 +1600,7 @@ export function translate(code, { withHeader=true }={}) {
                 const prefixNodes = node.children.filter(each=>each.type != "compound_statement")
                 const functionName = prefixNodes.filter(each=>each.type=="word")[0].text
                 const functionBody = node.quickQueryFirst(`(compound_statement)`).children.filter(each=>each.type!="{"&&each.type!="}").map(each=>translateInner(each, { context: "function_definition" })).join("")
+                functionNames.push(functionName)
                 return `// FIXME: you'll need to custom verify this function usage: ${functionName}\n${node.indent}async function ${functionName}(...args) { const { local, env } = makeScope({ args })\n${functionBody}\n${node.indent}}`
                 // return node.children.map(each=>translateInner(each, { context: "function_definition" })).join("")
             // 
@@ -1704,7 +1742,7 @@ export function translate(code, { withHeader=true }={}) {
                 }
                 if (translatedNodes.every(each=>each.asJsValue)) {
                     output.asDaxArgSingleQuoteInnards = ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue()}}`).join("")+"</string>"
+                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
                     }
                 }
                 return output

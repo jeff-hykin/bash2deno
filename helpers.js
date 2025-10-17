@@ -141,6 +141,14 @@ if (Deno.build.os=="windows") {
     env.HOME = Deno.env.get("HOMEPATH")
 }
 
+export const iterateOver = (obj)=>{
+    if (typeof obj === "string") {
+        return obj.split(/s+/g)
+    } else if (obj instanceof Array) {
+        return obj
+    }
+}
+
 
 export function initHelpers({ dax, iDontNeedDollarQuestionMark=false }) {
     const negationName = `_negateShim_${Math.random().toString(36).slice(2)}`
