@@ -1,31 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <style>
-        body {
-            height: 100vh;
-            display: flex;
-            flex-direction: row;
-        }
-        #code {
-            width: 50%;
-            height: 100%;
-        }
-        #code_output {
-            width: 50%;
-            height: 100%;
-        }
-    </style>
-</head>
-<body>
-    <textarea id="code" placeholder="put bash here"></textarea>
-    <textarea id="code_output" placeholder="put bash here"></textarea>
-</body>
-<script src="./main.js"></script>
-<script type="module">
+#!/usr/bin/env -S deno run --allow-all
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __esm = (fn, res) => function __init() {
@@ -14407,12 +14380,6 @@ function escapeJsKeyAccess(key) {
     return `[${JSON.stringify(key)}]`;
   }
 }
-let code
-setInterval(() => {
-    if (code!=document.getElementById("code").value) {
-        code = document.getElementById("code").value 
-        document.getElementById("code_output").value = translate(code).jsCode
-    }
-}, 100)
-</script>
-</html>
+export {
+  translate
+};
