@@ -338,6 +338,10 @@ export function initHelpers({ dax, iDontNeedDollarQuestionMark=false }) {
                     }
                 },
                 set(original, key, value) {
+                    if (localOnlyVars[key] !== undefined) {
+                        localOnlyVars[key] = value
+                        return true
+                    }
                     original[key] = value
                     if (typeof key !== 'symbol') {
                         Deno.env.set(key, value)

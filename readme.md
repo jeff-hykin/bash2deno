@@ -24,7 +24,7 @@ This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the
 
 - For loops
 - While loops
-- Redirection
+- Redirection*
 - Piping
 - Chaining `&&` and `||`
 - Aliases
@@ -42,16 +42,16 @@ This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the
     - Is directory
     - String empty 
     - String not empty
-    
+- Half-support for Bash Functions (can't redirect / pipe but can call with arguments)
 
 While most bash code will work, there are a few things that are not currently supported:
 
+- Globbing (coming soon, just waiting on [this PR](https://github.com/dsherret/dax/pull/338))
+- Double redirection inside of a pipeline
 - Heredocs
 - Jobs and background task management
-- Bash Functions
-- Globbing (coming soon, just waiting on [this PR](https://github.com/dsherret/dax/pull/338))
 - Case statements
-- The `$?` variable
+- The `$?` variable (Sort of supported, but async makes it not 100% accurate)
 - Bash Arrays
 - Advanced parameter expansion
 - set pipefail
