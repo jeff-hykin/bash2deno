@@ -235,7 +235,7 @@ export function initHelpers({ dax, iDontNeedDollarQuestionMark=false }) {
     const $ = Object.assign(wrappedDax, dax.$, {
         // $.str`echo hi`
         str: (strings, ...args)=>{
-            return $(strings, ...args).text().replace(/\n+$/g,"")
+            return ($(strings, ...args).text()).then(result=>result.replace(/\n+$/g,""))
         },
         // $.success`echo hi`
         success: (strings, ...args)=>{
