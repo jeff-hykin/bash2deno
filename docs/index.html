@@ -9,9 +9,9 @@
     <body>
     </body>
     <script type="module">
-        import { createEditor } from 'https://cdn.jsdelivr.net/gh/jeff-hykin/codemirror_esm@4cc6ded5e2f14dd3531a6dd8ff79fccbee5c366f/helpers.js'
-        import { javascript } from 'https://cdn.jsdelivr.net/gh/jeff-hykin/codemirror_esm@4cc6ded5e2f14dd3531a6dd8ff79fccbee5c366f/@codemirror/lang-javascript.js'
-        import { shell } from 'https://cdn.jsdelivr.net/gh/jeff-hykin/codemirror_esm@4cc6ded5e2f14dd3531a6dd8ff79fccbee5c366f/@codemirror/lang-shell.js'
+        import { createEditor } from 'https://cdn.jsdelivr.net/gh/jeff-hykin/codemirror_esm@a41d5d94bc3464365f6ec1e40d9f8d5674856755/helpers.js'
+        import { javascript } from 'https://cdn.jsdelivr.net/gh/jeff-hykin/codemirror_esm@a41d5d94bc3464365f6ec1e40d9f8d5674856755/@codemirror/lang-javascript.js'
+        import { bash } from 'https://cdn.jsdelivr.net/gh/jeff-hykin/codemirror_esm@a41d5d94bc3464365f6ec1e40d9f8d5674856755/@codemirror/lang-bash.js'
         import { throttle } from 'https://esm.sh/gh/jeff-hykin/good-js@1.18.2.0/source/flattened/throttle.js'
         
         import { translate } from 'https://esm.sh/gh/jeff-hykin/bash2deno@master/api.js'
@@ -31,11 +31,11 @@
             language: javascript,
         })
         
-        const shellEditor = createEditor({
+        const bashEditor = createEditor({
             style: "width:50vw;height:100vh",
-            language: shell,
+            language: bash,
             value: `
-                echo hello > file.txt
+                echo "hello" > file.txt
             `.replace(/\n                /g, "\n").slice(1),
             onInput: throttle(500, ({element, editor}, update)=>{
                 try {
@@ -49,7 +49,7 @@
         })
         
         document.body = html`<body display=flex>
-            ${shellEditor}
+            ${bashEditor}
             ${javascriptEditor}
             ${warningsDiv}
         </body>`
