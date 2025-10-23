@@ -9,7 +9,7 @@ Try it yourself [online](https://jeff-hykin.github.io/bash2deno/). Make Bash scr
 You can also run it programmatically:
 
 ```js
-import { translate } from "https://esm.sh/gh/jeff-hykin/bash2deno@1.0.0/main/api.js"
+import { translate } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.2/main/api.js"
 let code = translate(`echo "Hello World!"`)
 ```
 
