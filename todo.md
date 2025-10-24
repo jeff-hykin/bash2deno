@@ -1,0 +1,2 @@
+- fix assignment to empty string
+- fix quote escaping of `python -c '\n(multiline)'` 
