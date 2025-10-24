@@ -22,9 +22,12 @@ This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the
 
 #### Features & Limitations
 
+If something is not supported, it still gets translated but just as a FIXME comment containing the original bash code.
+
+Supported:
 - For loops
 - While loops
-- Redirection*
+- Most Redirection*
 - Piping
 - Chaining `&&` and `||`
 - Aliases
@@ -32,9 +35,9 @@ This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the
 - Basic parameter expansion
 - Special variables $*, $@, $#, $1, $2, etc
 - Nested Command substitution
-- prompt input (e.g. `read`)
+- basic prompt input (e.g. `read`)
 - Command checks (`which`, `command -v`)
-- If statements
+- Most If statements
     - String compare
     - Number compare
     - Is executable
@@ -42,6 +45,7 @@ This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the
     - Is directory
     - String empty 
     - String not empty
+    - Negation
 - Half-support for Bash Functions (can't redirect / pipe but can call with arguments)
 
 While most bash code will work, there are a few things that are not currently supported:
