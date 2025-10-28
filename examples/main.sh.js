@@ -32,7 +32,7 @@ console.log(`Greeting upper: $greeting`)      // Uppercase
 await $`ps aux > /dev/null`
 await $`ps aux`.stdout("null").stderr("null")
 await $`echo aux | echo ${env.USER}`
-await $`ps aux | grep ${env.USER} | grep -v double pipe`;
+await $`ps aux | grep ${env.USER} | grep -v ${`double pipe`}`;
 await $`mkdir -p /tmp/demo && echo Created demo dir && echo Created demo dir && echo Created demo dir`
 
 // ========== CONTROL FLOW ==========
@@ -167,7 +167,7 @@ await $`ps aux`.stdout(appendTo(`./somefile`)).stderr(appendTo(`./somefile`))
 await $`ps aux`.stdout(appendTo(`./somefile${env.number}`)).stderr(appendTo(`./somefile${env.number}`))
 await $`ps aux`.stdout(appendTo(`./somefile$number`)).stderr(appendTo(`./somefile$number`))
 await $`ps aux`.stdout("null")
-await $`tar -cf  .`
+await $`undefined`
 await $`ls somefile thatdoesnotexist`.stdout(overwrite(`err`))
 
 // ========== PIPES ==========
@@ -175,17 +175,17 @@ await $`ps aux | grep ${env.USER}`
 await $`ps aux | echo ${env.USER}`
 await $`echo aux | echo ${env.USER}`
 // alsdkjfasdj
-await $`ps aux | grep ${env.USER} | grep -v double pipe`;
+await $`ps aux | grep ${env.USER} | grep -v ${`double pipe`}`;
 // alsdkjfasdj
-await $`ps aux | grep ${env.USER} | grep -v double pipe and > /dev/null`;
+await $`ps aux | grep ${env.USER} | grep -v ${`double pipe and`} > /dev/null`;
 // hi
 /* FIXME: ps aux &>/dev/null | grep "$USER" */0;
 /* FIXME: ps aux 1>&2 2>/dev/null | grep "$USER" */0;
 await $`ps aux | grep ${env.USER} | grep -v grep`;
 // TODO: tree-sitter parser doesn't like this part without semicolons for some reason
-await $`cat `;
-await $`diff  `;
-await $`paste  `;
+await $`undefined`;
+await $`undefined`;
+await $`undefined`;
 
 // ========== CHAINING ==========
 await $`mkdir -p /tmp/demo || echo hi`

@@ -1,0 +1,50 @@
+<program>
+    <if_statement>
+        <if text="if" />
+        <whitespace text=" " />
+        <test_command>
+            <"[" text="[" />
+            <whitespace text=" " />
+            <unary_expression>
+                <test_operator text="-n" />
+                <whitespace text=" " />
+                <string>
+                    <"\"" text="\"" />
+                    <command_substitution>
+                        <"$(" text="$(" />
+                        <command>
+                            <command_name>
+                                <word text="command" />
+                            </command_name>
+                            <whitespace text=" " />
+                            <word text="-v" />
+                            <whitespace text=" " />
+                            <string>
+                                <"\"" text="\"" />
+                                <string_content text="deno" />
+                                <"\"" text="\"" />
+                            </string>
+                        </command>
+                        <")" text=")" />
+                    </command_substitution>
+                    <"\"" text="\"" />
+                </string>
+            </unary_expression>
+            <whitespace text=" " />
+            <"]" text="]" />
+        </test_command>
+        <";" text=";" />
+        <whitespace text=" " />
+        <then text="then" />
+        <whitespace text="\n  " />
+        <command>
+            <command_name>
+                <word text="echo" />
+            </command_name>
+            <whitespace text=" " />
+            <word text="hi" />
+        </command>
+        <whitespace text="\n" />
+        <fi text="fi" />
+    </if_statement>
+</program>

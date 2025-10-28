@@ -1,0 +1,11 @@
+<program>
+    <command>
+        <command_name>
+            <word text="python" />
+        </command_name>
+        <whitespace text=" " />
+        <word text="-c" />
+        <whitespace text=" " />
+        <raw_string text="'\nimport sys\nprint(sys.argv[1])\n'" />
+    </command>
+</program>
