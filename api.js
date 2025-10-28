@@ -160,6 +160,41 @@ const autofillOutputForms = (output)=>{
     if (typeof output === "string") {
         output = { asJsStatement: output }
     }
+    const usedKeys = [
+        "asDaxArgUnquoted",
+        "asDaxArgSingleQuoteInnards",
+        "asDaxCommandInnardsPure",
+        "asDaxCommandInnardsRedirected",
+        "asDaxCommandInnardsChained",
+        "asDaxCallNoPostfix",
+        "asDaxCallRedirected",
+        "asDaxCallToString",
+        "asDaxCallSuccess",
+        "asDaxCallFail",
+        "asJsBacktickStringInnards",
+        "asJsBacktickString",
+        "asJsStringValue",
+        "asJsArray",
+        "asJsNumber",
+        "asJsValue",
+        "asJsConditional",
+        "asNegatedJsConditional",
+        "asJsStatement",
+    ]
+    const original = output
+    const copy = { ...output }
+    for (const key of usedKeys) {
+        Object.defineProperty(copy, key, {
+            get: ()=>{
+                if (original[key] instanceof Function) {
+                    return original[key]()
+                } else {
+                    return original[key]
+                }
+            },
+        })
+    }
+    output = copy
     // form
     let {
         // the output only need to be one or two of these, everything else will get autofilled
@@ -386,6 +421,9 @@ const unifyArgs = (args, { translateInner }) => {
                         chunks.push(each.asDaxSingleQuoted)
                     } else if (each.asJsStringValue) {
                         chunks.push(`\${${each.asJsStringValue}}`)
+                    }
+                    if (chunks.at(-1) instanceof Function) {
+                        console.debug(`each is:`,each)
                     }
                 }
                 return chunks.join(" ")
@@ -1744,7 +1782,8 @@ export function translate(code, { withHeader=true }={}) {
                 }
                 if (translatedNodes.every(each=>each.asJsValue)) {
                     output.asDaxArgSingleQuoteInnards = ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
+                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")
+                        // return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
                     }
                 }
                 return output
