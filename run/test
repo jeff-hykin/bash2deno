@@ -1,0 +1,10 @@
+#!/usr/bin/env -S deno run --allow-all
+import { FileSystem, glob } from "https://deno.land/x/quickr@0.8.7/main/file_system.js"
+import { translate } from "../api.js"
+
+for (let each of await glob(`${FileSystem.thisFolder}/../examples/*.sh`)) {
+    console.debug(`running is:`,each)
+    const main = translate(await FileSystem.read(each))
+    await FileSystem.write({path:`${FileSystem.thisFolder}/../${each}.xml`, data: main.xmlStylePreview, overwrite: true})
+    await FileSystem.write({path:`${FileSystem.thisFolder}/../${each}.js`, data: main.jsCode, overwrite: true})
+}
