@@ -6,14 +6,14 @@ Try it yourself [online](https://jeff-hykin.github.io/bash2deno/). Make Bash scr
 
 ## How to Use
 
-You can also run it programmatically:
+Either run it programmatically:
 
 ```js
 import { translate } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.2/main/api.js"
 let code = translate(`echo "Hello World!"`)
 ```
 
-There's an online version here: https://jeff-hykin.github.io/bash2deno/
+Or there's an online version here: https://jeff-hykin.github.io/bash2deno/
 
 ## How it Works
 
@@ -22,9 +22,12 @@ This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the
 
 #### Features & Limitations
 
+If something is not supported, it still gets translated but just as a FIXME comment containing the original bash code.
+
+Supported:
 - For loops
 - While loops
-- Redirection*
+- Most Redirection*
 - Piping
 - Chaining `&&` and `||`
 - Aliases
@@ -32,9 +35,9 @@ This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the
 - Basic parameter expansion
 - Special variables $*, $@, $#, $1, $2, etc
 - Nested Command substitution
-- prompt input (e.g. `read`)
+- basic prompt input (e.g. `read`)
 - Command checks (`which`, `command -v`)
-- If statements
+- Most If statements
     - String compare
     - Number compare
     - Is executable
@@ -42,6 +45,7 @@ This uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse the
     - Is directory
     - String empty 
     - String not empty
+    - Negation
 - Half-support for Bash Functions (can't redirect / pipe but can call with arguments)
 
 While most bash code will work, there are a few things that are not currently supported:
