@@ -7,6 +7,8 @@ import { isValidKeyLiteral } from 'https://esm.sh/gh/jeff-hykin/good-js@1.18.2.0
 import { zipLong } from 'https://esm.sh/gh/jeff-hykin/good-js@1.18.2.0/source/flattened/zip_long.js'
 const parser = await createParser(bash) // path or Uint8Array
 
+// TODO: finish replacing all convertArgs with unifyArgs
+
 // 1.0 goal:
     // DONE: sub shells
     // DONE: fixup args/env special env
@@ -898,11 +900,11 @@ export function translate(code, { withHeader=true }={}) {
                         asJsStatement: `await ${commandNameNode.text}(${uniArgs.asJsArray.slice(1,-1)})` 
                     }
                 } else {
-                    const convertedArgs = convertArgs([ commandNameNode, ...argNodes ])
+                    const convertedArgs = unifyArgs([ commandNameNode, ...argNodes ], { translateInner })
                     if (convertedArgs == null) {
                         return fallbackTranslate(node)
                     }
-                    const asDaxCommandInnardsPure = `${getEnvPrefix()+convertedArgs.slice(1,-1)}`
+                    const asDaxCommandInnardsPure = `${getEnvPrefix()+convertedArgs.asDaxArgSequence}`
                     return { asDaxCommandInnardsPure, asJsStatement: `await $\`${asDaxCommandInnardsPure}\`` }
                 }
             } else if (node.type == "test_command") {
@@ -1658,7 +1660,7 @@ export function translate(code, { withHeader=true }={}) {
                 return {
                     source: "raw_string",
                     // asDaxArgUnquoted: text, // normally we'd need to escape single quotes, but there won't be any here
-                    asDaxArgSingleQuoteInnards: text, // normally we'd need to escape single quotes, but there won't be any here
+                    asDaxArgSingleQuoteInnards: `'${text.slice(1, -1)}'`, // normally we'd need to escape single quotes, but there won't be any here
                     asJsBacktickStringInnards: text.slice(1, -1),
                     asJsValue: text,
                 }
@@ -1763,7 +1765,7 @@ export function translate(code, { withHeader=true }={}) {
                 }
                 if (translatedNodes.every(each=>each.asJsValue)) {
                     output.asDaxArgSingleQuoteInnards = ()=>{
-                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue()}}`).join("")
+                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")
                     }
                 }
                 return output
@@ -1798,6 +1800,10 @@ export function translate(code, { withHeader=true }={}) {
                     source: "expansion",
                     asDaxArgUnquoted: `$${varName}`,
                     asJsStringValue: output,
+                }
+            } else if (node.type == "ERROR") {
+                return {
+                    asJsStatement: node.children.map(translateInner).join(""),
                 }
             // 
             // couldn't translate
