@@ -191,9 +191,7 @@ async function init_lock(...args) { const { local, env } = makeScope({ args })
     // use umask to set the permissions.
     await $`umask 0555`
     // !  eval "exec $LOCK_FD>$LOCK_FILE" > /dev/null 2>&1
-    if ((await $`! eval ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`.stdout(...$stdout)).code==0)) {
+    if ((await $`! eval ${`exec `}${env.LOCK_FD}${`>`}${env.LOCK_FILE}`.stdout(...$stdout)).code==0)) {
         return exitCodeOfLastChildProcess = 1
     }
     await $`umask ${env.SCRIPT_UMASK}`
@@ -220,9 +218,7 @@ async function mutex_lock(...args) { const { local, env } = makeScope({ args })
     env.counter_mutex_fd = await $.str`get_avail_fd`
     // [[ $counter_mutex_fd -ne 0 ]]
     if (env.counter_mutex_fd != 0) {
-        await $`eval ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+        await $`eval ${`exec `}${env.counter_mutex_fd}${`<>`}${env.COUNTER_LOCK_FILE}`
         await $`flock ${env.counter_mutex_fd}`
         env.counter = prompt() /* FIXME: this was a read from ${env.counter_mutex_fd}, (e.g. ["-u","${env.counter_mutex_fd}","counter"]) but I'm only able to translate reading from stdin */
     } else {
@@ -236,9 +232,7 @@ async function mutex_lock(...args) { const { local, env } = makeScope({ args })
 
     // write counter and unlock local mutex
     await $`echo ${env.counter} > /proc/$BASHPID/fd/$counter_mutex_fd`
-    await $`eval ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+    await $`eval ${`exec `}${env.counter_mutex_fd}${`<&-`}`
     return exitCodeOfLastChildProcess = 0
 
 }
@@ -254,9 +248,7 @@ async function mutex_unlock(...args) { const { local, env } = makeScope({ args }
     env.counter_mutex_fd = await $.str`get_avail_fd`
     // [[ $counter_mutex_fd -ne 0 ]]
     if (env.counter_mutex_fd != 0) {
-        await $`eval ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+        await $`eval ${`exec `}${env.counter_mutex_fd}${`<>`}${env.COUNTER_LOCK_FILE}`
         await $`flock ${env.counter_mutex_fd}`
         env.counter = prompt() /* FIXME: this was a read from ${env.counter_mutex_fd}, (e.g. ["-u","${env.counter_mutex_fd}","counter"]) but I'm only able to translate reading from stdin */
     } else {
@@ -273,9 +265,7 @@ async function mutex_unlock(...args) { const { local, env } = makeScope({ args }
 
     // write counter and unlock local mutex
     await $`echo ${env.counter} > /proc/$BASHPID/fd/$counter_mutex_fd`
-    await $`eval ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+    await $`eval ${`exec `}${env.counter_mutex_fd}${`<&-`}`
     return exitCodeOfLastChildProcess = 0
 
 }
@@ -402,9 +392,7 @@ async function get_adapter_info(...args) { const { local, env } = makeScope({ ar
 async function get_adapter_kernel_module(...args) { const { local, env } = makeScope({ args })
 
     local.MODULE = ""
-    env.MODULE = await $.str`readlink -f ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+    env.MODULE = await $.str`readlink -f ${`/sys/class/net/`}${env["1"]}${`/device/driver/module`}`
     console.log(``)
 
 }
@@ -464,13 +452,9 @@ async function can_transmit_to_channel(...args) { const { local, env } = makeSco
     if (env.USE_IWCONFIG == 0) {
         // [[ $FREQ_BAND == 2.4 ]]
         if (env.FREQ_BAND === 2.4) {
-            env.CHANNEL_INFO = await $.str`get_adapter_info  | grep ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+            env.CHANNEL_INFO = await $.str`get_adapter_info  | grep ${` 24[0-9][0-9]\\(\\.0\\+\\)\\? MHz \\[`}${env.CHANNEL_NUM}${`\\]`}`
         } else {
-            env.CHANNEL_INFO = await $.str`get_adapter_info  | grep ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+            env.CHANNEL_INFO = await $.str`get_adapter_info  | grep ${` \\(49[0-9][0-9]\\|5[0-9]\\{3\\}\\)\\(\\.0\\+\\)\\? MHz \\[`}${env.CHANNEL_NUM}${`\\]`}`
         }
         // [[ -z "${CHANNEL_INFO}" ]]
         if (``.length == 0) {
@@ -487,9 +471,7 @@ async function can_transmit_to_channel(...args) { const { local, env } = makeSco
         return exitCodeOfLastChildProcess = 0
     } else {
         env.CHANNEL_NUM = await $.str`printf '%02d' $CHANNEL_NUM`
-        env.CHANNEL_INFO = await $.str`iwlist $IFACE channel | grep -E ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+        env.CHANNEL_INFO = await $.str`iwlist $IFACE channel | grep -E ${`Channel[[:blank:]]`}${env.CHANNEL_NUM}${`[[:blank:]]?:`}`
         // [[ -z "${CHANNEL_INFO}" ]]
         if (``.length == 0) {
             return exitCodeOfLastChildProcess = 1
@@ -565,9 +547,7 @@ async function is_wifi_connected(...args) { const { local, env } = makeScope({ a
 // FIXME: you'll need to custom verify this function usage: is_macaddr
 async function is_macaddr(...args) { const { local, env } = makeScope({ args })
 
-    await $`echo ${env["1"]} | grep -E ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`.stdout(...$stdout)
+    await $`echo ${env["1"]} | grep -E ${`^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}`}${`\$`}`.stdout(...$stdout)
 
 }
 
@@ -592,9 +572,7 @@ async function get_macaddr(...args) { const { local, env } = makeScope({ args })
     if ((await is_interface(env["1"])) != 0) {
         return exitCodeOfLastChildProcess = ``
     }
-    await $`cat ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+    await $`cat ${`/sys/class/net/`}${env["1"]}${`/address`}`
 
 }
 
@@ -605,9 +583,7 @@ async function get_mtu(...args) { const { local, env } = makeScope({ args })
     if ((await is_interface(env["1"])) != 0) {
         return exitCodeOfLastChildProcess = ``
     }
-    await $`cat ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+    await $`cat ${`/sys/class/net/`}${env["1"]}${`/mtu`}`
 
 }
 
@@ -836,13 +812,10 @@ async function networkmanager_add_unmanaged(...args) { const { local, env } = ma
 $UNMANAGED >> ${NETWORKMANAGER_CONF}`
     // [[ $WAS_EMPTY -eq 1 ]]
     } else if (env.WAS_EMPTY == 1) {
-        await $`sed -e ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    } -i $NETWORKMANAGER_CONF`
+        await $`sed -e ${`s/^\\(\\[keyfile\\].*\\)`}${`\$`}${`/
+`}${env.UNMANAGED}${`/`} -i $NETWORKMANAGER_CONF`
     } else {
-        await $`sed -e ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    } -i $NETWORKMANAGER_CONF`
+        await $`sed -e ${`s/^unmanaged-devices=.*/`}${env.UNMANAGED}${`/`} -i $NETWORKMANAGER_CONF`
     }
 
     env.ADDED_UNMANAGED = `$ADDED_UNMANAGED$1`
@@ -892,9 +865,7 @@ async function networkmanager_rm_unmanaged(...args) { const { local, env } = mak
     }
 
     /* FIXME: [[ -n "$MAC" ]] && UNMANAGED=$(echo $UNMANAGED | sed -e "s/mac:${MAC}\( \|$\)//g") */0
-    env.UNMANAGED = await $.str`echo ${env.UNMANAGED} | sed -e ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+    env.UNMANAGED = await $.str`echo ${env.UNMANAGED} | sed -e ${`s/interface-name:`}${env["1"]}${`\\( \\|`}${`\$`}${`\\)//g`}`
     env.UNMANAGED = await $.str`echo ${env.UNMANAGED} | sed -e 's/ $//'`
 
     // [[ -z "$UNMANAGED" ]]
@@ -903,9 +874,7 @@ async function networkmanager_rm_unmanaged(...args) { const { local, env } = mak
     } else {
         env.UNMANAGED = env.UNMANAGED/* FIXME: UNMANAGED// /; */
         env.UNMANAGED = `unmanaged-devices=$UNMANAGED`
-        await $`sed -e ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    } -i $NETWORKMANAGER_CONF`
+        await $`sed -e ${`s/^unmanaged-devices=.*/`}${env.UNMANAGED}${`/`} -i $NETWORKMANAGER_CONF`
     }
 
     env.ADDED_UNMANAGED = env.ADDED_UNMANAGED/* FIXME: ADDED_UNMANAGED/ ${1} / */
@@ -958,9 +927,8 @@ async function networkmanager_wait_until_unmanaged(...args) { const { local, env
         if (env.RES == 0) {
             break
         }
-        await $`[[ $RES -eq 2 ]] && die ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+        await $`[[ $RES -eq 2 ]] && die ${`Interface '`}${env["1"]}${`' does not exist.`}${
+}${`       It's probably renamed by a udev rule.`}`
         await $`sleep 1`
     
     }
@@ -1031,9 +999,7 @@ async function _cleanup(...args) { const { local, env } = makeScope({ args })
 
     local.PID = "";local.x = ""
 
-    await $`trap ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    } SIGINT SIGUSR1 SIGUSR2 EXIT`
+    await $`undefined`
     await mutex_lock()
     await $`disown -a`
 
@@ -1290,22 +1256,14 @@ async function list_running(...args) { const { local, env } = makeScope({ args }
 // FIXME: you'll need to custom verify this function usage: get_wifi_iface_from_pid
 async function get_wifi_iface_from_pid(...args) { const { local, env } = makeScope({ args })
 
-    await $`list_running | awk '{print $1 " " $NF}' | tr -d '\\(\\)' | grep -E ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    } | cut ()=>{
-                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")
-                    } -f2`
+    await $`list_running | awk '{print $1 " " $NF}' | tr -d '\\(\\)' | grep -E ${`^`}${env["1"]} | cut -d' ' -f2`
 
 }
 
 // FIXME: you'll need to custom verify this function usage: get_pid_from_wifi_iface
 async function get_pid_from_wifi_iface(...args) { const { local, env } = makeScope({ args })
 
-    await $`list_running | awk '{print $1 " " $NF}' | tr -d '\\(\\)' | grep -E ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    } | cut ()=>{
-                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")
-                    } -f1`
+    await $`list_running | awk '{print $1 " " $NF}' | tr -d '\\(\\)' | grep -E ${env["1"]}${`\$`} | cut -d' ' -f1`
 
 }
 
@@ -1337,12 +1295,8 @@ async function print_client(...args) { const { local, env } = makeScope({ args }
     // [[ -f $CONFDIR/dnsmasq.leases ]]
     if ([object Object]) {
         env.line = await $.str`grep ${env[" $mac"]} ${env.CONFDIR}/dnsmasq.leases | tail -n 1`
-        env.ipaddr = await $.str`echo ${env.line} | cut ()=>{
-                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")
-                    } -f3`
-        env.hostname = await $.str`echo ${env.line} | cut ()=>{
-                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")
-                    } -f4`
+        env.ipaddr = await $.str`echo ${env.line} | cut -d' ' -f3`
+        env.hostname = await $.str`echo ${env.line} | cut -d' ' -f4`
     }
 
     /* FIXME: [[ -z "$ipaddr" ]] && ipaddr="*" */0
@@ -1433,9 +1387,7 @@ async function has_running_instance(...args) { const { local, env } = makeScope(
 // FIXME: you'll need to custom verify this function usage: is_running_pid
 async function is_running_pid(...args) { const { local, env } = makeScope({ args })
 
-    await $`list_running | grep -E ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`.stdout(...$stdout)
+    await $`list_running | grep -E ${`^`}${env["1"]}`.stdout(...$stdout)
 
 }
 
@@ -1455,11 +1407,7 @@ async function send_stop(...args) { const { local, env } = makeScope({ args })
 
     // send stop signal to specific interface
     // for x in $(list_running | grep -E " \(?${1}( |\)?\$)" | cut -f1 -d' '); 
-    for (env.x of iterateOver(await $.str`list_running | grep -E ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    } | cut -f1 ()=>{
-                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")
-                    }`)) {
+    for (env.x of iterateOver(await $.str`list_running | grep -E ${` \\(?`}${env["1"]}${`( |\\)?$)`} | cut -f1 -d' '`)) {
 
         await $`kill -USR1 ${env.x}`
     
@@ -1495,9 +1443,7 @@ async function write_config(...args) { const { local, env } = makeScope({ args }
         // have control over, and keep permissions strictly private. (i.e. they will
         // need to run create_ap directly with sudo in order to write to, say, /etc/create_ap2.conf)
         await $`touch ${env.STORE_CONFIG}`
-        await $`chown ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    } ${env.STORE_CONFIG}`
+        await $`chown ${await $.str`id -nu ${env.PKEXEC_UID}`}${`:`}${await $.str`id -ng ${env.PKEXEC_GID}`} ${env.STORE_CONFIG}`
         await $`chmod 600 ${env.STORE_CONFIG}`
     // ! eval 'echo -n > "$STORE_CONFIG"' > /dev/null 2>&1
     } else if ((await $`! eval 'echo -n > "$STORE_CONFIG"'`.stdout(...$stdout)).code==0)) {
@@ -1595,9 +1541,7 @@ for (env.i=0; env.i<$#; env.i++) {
 
 }
 
-env.GETOPT_ARGS = await $.str`getopt -o hc:w:g:de:nm: -l ()=>{
-                        return translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")
-                    } -n ${env.PROGNAME} -- ${env["@"]}`
+env.GETOPT_ARGS = await $.str`getopt -o hc:w:g:de:nm: -l ${`help`},${`hidden`},${`hostapd-debug:`},${`hostapd-timestamps`},${`redirect-to-localhost`},${`mac-filter`},${`mac-filter-accept:`},${`isolate-clients`},${`ieee80211n`},${`ieee80211ac`},${`ieee80211ax`},${`ht_capab:`},${`vht_capab:`},${`driver:`},${`no-virt`},${`fix-unmanaged`},${`country:`},${`freq-band:`},${`mac:`},${`dhcp-dns:`},${`daemon`},${`pidfile:`},${`logfile:`},${`dns-logfile:`},${`stop:`},${`list`},${`list-running`},${`list-clients:`},${`version`},${`psk`},${`no-haveged`},${`no-dns`},${`no-dnsmasq`},${`mkconfig:`},${`config:`},${`dhcp-hosts:`} -n ${env.PROGNAME} -- ${env["@"]}`
 await $`[[ $? -ne 0 ]] && exit 1`
 await $`eval set -- ${env.GETOPT_ARGS}`
 
@@ -1824,18 +1768,12 @@ if (env.LOAD_CONFIG.length > 0) {
     for (env.x of iterateOver(`WIFI_IFACE`)) {
 
         // eval "[[ -n \"\$${x}\" ]]"
-        if ((await $`eval ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`).code==0)) {
-            await $`eval ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+        if ((await $`eval ${`[[ -n "$`}${env.x}${`" ]]`}`).code==0)) {
+            await $`eval ${`set -- "\${@:1:`}${env.i}${`}" "$`}${env.x}${`"`}`
             await $`((i++))`
         }
         // we unset the variable to avoid any problems later
-        await $`eval ()=>{
-                        return "<string>"+translatedNodes.map(each=>each.asDaxArgSingleQuoteInnards||`\${${each.asJsValue}}`).join("")+"</string>"
-                    }`
+        await $`eval ${`unset `}${env.x}`
     
     }
 }
