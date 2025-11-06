@@ -34,6 +34,7 @@ Supported:
 - Unset
 - Basic parameter expansion
 - Special variables $*, $@, $#, $1, $2, etc
+- Backticks
 - Nested Command substitution
 - basic prompt input (e.g. `read`)
 - Command checks (`which`, `command -v`)
@@ -61,3 +62,4 @@ While most bash code will work, there are a few things that are not currently su
 - set pipefail
 - source
 - input redirects
+- the `eval` or `source` command
