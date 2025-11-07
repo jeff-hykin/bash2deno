@@ -6,7 +6,31 @@ Try it yourself [online](https://jeff-hykin.github.io/bash2deno/). Make Bash scr
 
 ## How to Use
 
-Either run it programmatically:
+Pick your preferred method, the cli tool, [online converter](https://jeff-hykin.github.io/bash2deno/), or programmatically in javascript.
+
+### CLI
+
+Install the cli tool:
+```bash
+# install deno
+curl -fsSL https://deno.land/install.sh | sh
+# install to-esm
+deno install -n bash2deno -Afg https://esm.sh/gh/jeff-hykin/bash2deno/cli.js
+```
+
+Then run it:
+```bash
+bash2deno --help
+bash2deno --version
+
+# non-destructive
+bash2deno -- ./file1.sh ./file2.sh
+
+# destructive
+bash2deno --inplace ./bin/file1
+```
+
+### Programmatically
 
 ```js
 import { translate } from "https://esm.sh/gh/jeff-hykin/bash2deno@0.1.0.2/main/api.js"
